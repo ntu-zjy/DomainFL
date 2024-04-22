@@ -34,17 +34,20 @@ def fedavg(weights, clientObjs, server):
     adapters = [c.model.base.global_adapter for c in clientObjs]
 
     # fedavg aggregation
-    global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
-    for global_adapter in adapters:
-        for w, global_param, param in zip(weights, global_adapter.parameters(), global_adapter.parameters()):
+    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
+    for param in server_global_adapter.parameters():
+        param.data.zero_()
+
+    for adapter in adapters:
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data
 
     # set the global adapter to the server
-    server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
+    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
     for client in clientObjs:
-        client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
+        client.model.base.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     return clientObjs, server
 
@@ -67,7 +70,7 @@ def run(args):
         clients.append(client)
 
     # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
+    print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients

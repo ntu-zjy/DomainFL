@@ -33,8 +33,15 @@ class ImageEncoder(torch.nn.Module):
             name, pretrained=pretrained)
         self.adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
         self.global_adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
+        self.global_adapter_init()
+        
         self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
         self.adapter_beta = nn.Parameter(torch.tensor(0.0), requires_grad=True)
+
+    # set the global adapter to 0
+    def global_adapter_init(self):
+        for param in self.global_adapter.parameters():
+            param.data.zero_()
 
     def forward(self, images):
         assert self.model is not None

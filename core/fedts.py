@@ -25,20 +25,29 @@ def calculate_fedts_weights(clients):
 def fedts(weights, clientObjs, server):
     print("fedts... with weights: ", weights)
     # server receive the adapters from clients
-    adapters = [c.model.base.global_adapter for c in clientObjs]
+    adapters = [c.model.base.adapter for c in clientObjs]
+    alphas = [c.model.base.adapter_alpha for c in clientObjs]
 
     # fedts aggregation
-    global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
-    for global_adapter in adapters:
-        for w, global_param, param in zip(weights, global_adapter.parameters(), global_adapter.parameters()):
-            global_param.data += w * param.data
+    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
+    for param in server_global_adapter.parameters():
+        param.data.zero_()
+
+    for adapter in adapters:
+        for a, w, global_param, param in zip(alphas, weights, server_global_adapter.parameters(), adapter.parameters()):
+            global_param.data += a * w * param.data
 
     # set the global adapter to the server
-    server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
+    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
     for client in clientObjs:
-        client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
+        client.model.base.global_adapter.load_state_dict(server_global_adapter.state_dict())
+
+    # each client need to minus their own part from the global adapter
+    for client in clientObjs:
+        for global_adapter, adapter in zip(client.model.base.global_adapter.parameters(), client.model.base.adapter.parameters()):
+            global_adapter.data -= adapter.data
 
     return clientObjs, server
 
