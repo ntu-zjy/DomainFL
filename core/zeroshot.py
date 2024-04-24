@@ -6,6 +6,7 @@ import torch
 import argparse
 from utils.get_data import data1, data2
 from utils.get_data import get_data
+from utils.data_utils import build_subset
 from utils.server import Server
 from utils.client import Client
 from tqdm import tqdm
@@ -30,47 +31,32 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
+        cd = build_subset(cd, 10)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
     zero_shot_acc = []
-    # alpha_list, beta_list = [], []
     total_test_time, total_train_time = 0, 0
-    for r in range(args.global_rounds):
-        print(f'==================== Round {r} ====================')
-        start_time = time.time()
-        if r % args.eval_interval == 0 or r == args.global_rounds - 1:
-            client_acc = []
-            for id, client in enumerate(clients):
-                stat = client.test()
-                zero_shot_acc.append(stat[0]) if r == 0 else None
-                print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
-                client_acc.append(stat[0])
-                # alpha_list.append(client.model.base.adapter_alpha.item())
-                # beta_list.append(client.model.base.adapter_beta.item())
+    start_time = time.time()
+    client_acc = []
+    for id, client in enumerate(clients):
+        stat = client.test()
+        zero_shot_acc.append(stat[0])
+        print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
+        client_acc.append(stat[0])
 
-            mean_acc = sum(client_acc) / len(client_acc)
-            with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-                json.dump\
-                    ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                    # ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'alpha': alpha_list, 'beta': beta_list}, f)
-                f.write('\n')
+        mean_acc = sum(client_acc) / len(client_acc)
+        with open(f'./results/zeroshot/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
+            json.dump\
+                ({'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+            f.write('\n')
 
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
-        start_time = time.time()
-        for id in range(len(clients)):
-            clients[id].fine_tune()
-        train_time = time.time() - start_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
-        total_test_time += test_time
-        total_train_time += train_time
+    test_time = time.time() - start_time
+    print(f'test time cost: {test_time:.2f}s')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
@@ -97,8 +83,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/local/', exist_ok=True)
-    with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
+    os.makedirs(f'./results/zeroshot/', exist_ok=True)
+    with open(f'./results/zeroshot/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

@@ -46,8 +46,8 @@ def fedavg(weights, clientObjs, server):
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
-    for client in clientObjs:
-        client.model.base.global_adapter.load_state_dict(server_global_adapter.state_dict())
+    for id in range(len(clientObjs)):
+        clientObjs[id].model.base.adapter.load_state_dict(server_global_adapter.state_dict())
 
     return clientObjs, server
 
@@ -96,8 +96,8 @@ def run(args):
         print(f'Round {r} test time cost: {test_time:.2f}s')
         start_time = time.time()
         # fine tune clients
-        for id, client in enumerate(clients):
-            client.fine_tune()
+        for id in range(len(clients)):
+            clients[id].fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
 

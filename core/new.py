@@ -6,38 +6,62 @@ import torch
 import argparse
 from models.CLIP import *
 from utils.get_data import data1
+from utils.get_data import data2
 from utils.get_data import get_data
 from utils.server import Server
 from utils.client import Client
 from tqdm import tqdm
 from utils.json_utils import generate_json_config
+from utils.local_adaptation import adaptive_local_aggregation
 import warnings
 warnings.simplefilter("ignore")
 
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
-def calculate_new_weights(clients):
-    weights = [client.base.adapter_alpha for client in clients]
+def calculate_fedts_weights(clients):
+    weights = [1/len(clients) for c in clients]
     return weights
 
-def new(weights, clientObjs, server):
-    print("New... with weights: ", weights)
+def local_adaptation(client, server):
+    client_local_adapter_params = adaptive_local_aggregation(server.image_encoder.global_adapter,\
+                                                            client.model.base.adapter, \
+                                                            client.model, \
+                                                            client.train_dataset, device=client.device)
+    for params, params_l in zip(client.model.base.adapter.parameters(), client_local_adapter_params):
+        params.data = params_l.data
+
+    return client
+
+def fedts(weights, clientObjs, server):
+    print("fedts... with weights: ", weights)
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
+    # alphas = [c.model.base.adapter_alpha for c in clientObjs]
 
-    # fedavg aggregation
-    global_adapter = copy.deepcopy(server.image_encoder.adapter)
+    # fedts aggregation
+    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
+    for param in server_global_adapter.parameters():
+        param.data.zero_()
+
+    # for adapter in adapters:
+    #     for a, w, global_param, param in zip(alphas, weights, server_global_adapter.parameters(), adapter.parameters()):
+    #         global_param.data += a * w * param.data
     for adapter in adapters:
-        for w, global_param, param in zip(weights, global_adapter.parameters(), adapter.parameters()):
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data
 
     # set the global adapter to the server
-    server.image_encoder.adapter.load_state_dict(global_adapter.state_dict())
+    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
     for client in clientObjs:
-        client.model.base.adapter.load_state_dict(global_adapter.state_dict())
+        client.model.base.global_adapter.load_state_dict(server_global_adapter.state_dict())
+
+    # # each client need to minus their own part from the global adapter
+    # for client in clientObjs:
+    #     for global_adapter, adapter in zip(client.model.base.global_adapter.parameters(), client.model.base.adapter.parameters()):
+    #         global_adapter.data -= adapter.data
 
     return clientObjs, server
 
@@ -78,7 +102,7 @@ def run(args):
                 client_acc.append(stat[0])
 
             mean_acc = sum(client_acc) / len(client_acc)
-            with open(f'./results/new/{args.image_encoder_name}.json', 'a+') as f:
+            with open(f'./results/new/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
                 json.dump({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -92,9 +116,13 @@ def run(args):
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
         # after fine tuning clients, we need to aggregate the adapters
-        weights = calculate_new_weights(clients)
-        # fedavg algorithm
-        clients, server = new(weights, clients, server)
+        weights = calculate_fedts_weights(clients)
+        # fedts algorithm
+        clients, server = fedts(weights, clients, server)
+
+        # local adaptation
+        for i, client in enumerate(clients):
+            clients[i] = local_adaptation(client, server)
 
         total_test_time += test_time
         total_train_time += train_time
@@ -125,7 +153,7 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/new/', exist_ok=True)
-    with open(f'./results/new/{args.image_encoder_name}.json', 'w+') as f:
+    with open(f'./results/new/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

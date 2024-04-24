@@ -4,7 +4,9 @@ import copy
 import time
 import torch
 import argparse
-from utils.get_data import data1, data2
+from models.CLIP import *
+from utils.get_data import data1
+from utils.get_data import data2
 from utils.get_data import get_data
 from utils.server import Server
 from utils.client import Client
@@ -15,6 +17,39 @@ warnings.simplefilter("ignore")
 
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
+
+def calculate_fedavg_weights(clients):
+    total_train_num = 0
+    num_list = []
+    for c in clients:
+        train_num = len(c.train_dataloader) * c.batch_size
+        total_train_num += train_num
+        num_list.append(train_num)
+    weights = [num/total_train_num for num in num_list]
+    return weights
+
+def fedavg(weights, clientObjs, server):
+    print("FedAvg... with weights: ", weights)
+    # server receive the adapters from clients
+    adapters = [c.model.base.global_adapter for c in clientObjs]
+
+    # fedavg aggregation
+    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
+    for param in server_global_adapter.parameters():
+        param.data.zero_()
+
+    for adapter in adapters:
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+            global_param.data += w * param.data
+
+    # set the global adapter to the server
+    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
+
+    # send the global adapter back to the clients
+    for client in clientObjs:
+        client.model.base.adapter.load_state_dict(server_global_adapter.state_dict())
+
+    return clientObjs, server
 
 
 def run(args):
@@ -35,12 +70,11 @@ def run(args):
         clients.append(client)
 
     # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
+    print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
     zero_shot_acc = []
-    # alpha_list, beta_list = [], []
     total_test_time, total_train_time = 0, 0
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
@@ -52,23 +86,26 @@ def run(args):
                 zero_shot_acc.append(stat[0]) if r == 0 else None
                 print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
                 client_acc.append(stat[0])
-                # alpha_list.append(client.model.base.adapter_alpha.item())
-                # beta_list.append(client.model.base.adapter_beta.item())
 
             mean_acc = sum(client_acc) / len(client_acc)
-            with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-                json.dump\
-                    ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                    # ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'alpha': alpha_list, 'beta': beta_list}, f)
+            with open(f'./results/fedclip/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
+                json.dump({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
         test_time = time.time() - start_time
         print(f'Round {r} test time cost: {test_time:.2f}s')
         start_time = time.time()
-        for id in range(len(clients)):
-            clients[id].fine_tune()
+        # fine tune clients
+        for id, client in enumerate(clients):
+            client.fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
+
+        # after fine tuning clients, we need to aggregate the adapters
+        weights = calculate_fedavg_weights(clients)
+        # fedavg algorithm
+        clients, server = fedavg(weights, clients, server)
+
         total_test_time += test_time
         total_train_time += train_time
 
@@ -79,7 +116,7 @@ if __name__ == "__main__":
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
     parser.add_argument('-optim','--optimizer', type=str, default='AdamW', help='Optimizer name')
     parser.add_argument('-lr','--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('-clip','--clip', type=float, default=5, help='Gradient clip')
+    parser.add_argument('-clip','--clip', type=float, default=1.0, help='Gradient clip')
     parser.add_argument('-bs','--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('-warm_up','--warm_up', type=int, default=5, help='Warm up epochs')
@@ -97,8 +134,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/local/', exist_ok=True)
-    with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
+    os.makedirs(f'./results/fedclip/', exist_ok=True)
+    with open(f'./results/fedclip/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 
