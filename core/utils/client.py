@@ -67,13 +67,13 @@ class Client(nn.Module):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
                 self.optimizer.step()
-                self.model.base.adapter_alpha.data.clamp_(0, 1)
-                self.model.base.adapter_beta.data.clamp_(0, 1)
+                # self.model.base.adapter_alpha.data.clamp_(0, 1)
+                # self.model.base.adapter_beta.data.clamp_(0, 1)
                 lr = self.optimizer.param_groups[0]['lr']
-                alpha = copy.deepcopy(self.model.base.adapter_alpha)
-                beta = copy.deepcopy(self.model.base.adapter_beta)
+                # alpha = copy.deepcopy(self.model.base.adapter_alpha)
+                # beta = copy.deepcopy(self.model.base.adapter_beta)
                 pbar.set_description\
-                    (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}, alpha: {alpha.item()}, beta: {beta.item()}')
+                    (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
             self.scheduler.step()
 
     # return acc, auc, f1, precision, recall

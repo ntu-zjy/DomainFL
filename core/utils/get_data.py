@@ -13,6 +13,7 @@ from data1.datasets_utils.fashionmnist import FashionMNIST
 
 
 data1 = ['Flowers102', 'Food101', 'MNIST', 'Imagenette', 'FashionMNIST', 'CIFAR10', 'CIFAR100', 'DTD']
+# data1 = ['DTD']
 
 from data2.datasets_utils.clipart import Clipart
 from data2.datasets_utils.painting import Painting

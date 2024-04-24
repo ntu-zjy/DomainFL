@@ -32,11 +32,13 @@ class ImageEncoder(torch.nn.Module):
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
         self.adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
+        # self.adapter_init()
         self.global_adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
         self.global_adapter_init()
-        
+
+        self.global_adapter_weights = list(torch.ones_like(p) for p in self.adapter.parameters())
         self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
-        self.adapter_beta = nn.Parameter(torch.tensor(0.0), requires_grad=True)
+        # self.adapter_beta = nn.Parameter(torch.tensor(0.0), requires_grad=True)
 
     # set the global adapter to 0
     def global_adapter_init(self):
@@ -44,11 +46,17 @@ class ImageEncoder(torch.nn.Module):
             param.data.zero_()
 
     def forward(self, images):
-        assert self.model is not None
         image_features = self.model.encode_image(images)
-        return self.adapter_beta * self.global_adapter(image_features) + \
-            self.adapter_alpha * self.adapter(image_features) + \
-                (1-self.adapter_alpha-self.adapter_beta) * image_features
+        # return self.adapter_alpha * self.adapter(image_features) + \
+        #     image_features
+        return self.adapter(image_features) + image_features
+        # return self.global_adapter_weights * self.global_adapter(image_features) + \
+        #     (1 - self.global_adapter_weights) * self.adapter(image_features) + \
+        #         image_features
+
+        # return self.adapter_beta * self.global_adapter(image_features) + \
+        #     self.adapter_alpha * self.adapter(image_features) + \
+        #         (1 - self.adapter_alpha) * image_features
 
     def __call__(self, inputs):
         return self.forward(inputs)
