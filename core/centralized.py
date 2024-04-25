@@ -26,7 +26,6 @@ def run(args):
 
     # initialize clients
     # client image encoder is the same as the global image encoder
-    clients = []
     cds = []
     cls_heads = []
     for id, data_name in enumerate(dataset):
@@ -42,8 +41,8 @@ def run(args):
             param.data += other_param.data
     for param in mean_cls_head.parameters():
         param.data /= len(cls_heads)
-    cds = concat_datasets(cds)
-    client = Client(args, id, cds.train_dataset, cds.test_dataset, cds.train_loader, cds.test_loader, cds.classnames, init_image_encoder, cls_head, data_name)
+    conds = concat_datasets(cds)
+    client = Client(args, id, conds.train_dataset, conds.test_dataset, conds.train_loader, conds.test_loader, conds.classnames, init_image_encoder, cls_head, data_name)
 
     # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
     print("name of the parameters in client.model:", [k for k,_ in client.model.named_parameters()])
@@ -55,14 +54,17 @@ def run(args):
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r != 0:
-            accs = client.test_on_all_clients(clients)
+        if r % args.eval_interval == 0 or r == args.global_rounds - 1:
+            accs = []
+            for cd in cds:
+                stat = client.test(cd.test_loader)
+                accs.append(stat[0])
             print(f'Round {r} accs: {accs}')
 
         test_time = time.time() - start_time
         print(f'Round {r} test time cost: {test_time:.2f}s')
         start_time = time.time()
-        client.fine_tune()
+        client.fine_tune(centralized=True)
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
         total_test_time += test_time
