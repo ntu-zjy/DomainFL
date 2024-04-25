@@ -40,15 +40,24 @@ def fedavg(weights, clientObjs, server):
         param.data.zero_()
 
     for adapter in adapters:
-        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+        for w, (name, global_param), param in zip(weights, server_global_adapter.named_parameters(), adapter.parameters()):
             global_param.data += w * param.data
+
+    # cal cos simiarity
+    import torch.nn.functional as F
+    from collections import OrderedDict
+    sim = OrderedDict()
+    for adapter in adapters:
+        for (name, global_param), param in zip(server_global_adapter.named_parameters(), adapter.parameters()):
+            sim[name] = F.cosine_similarity(global_param.flatten(), param.flatten(), dim=0)
+        print("cosine similarity: ", sim)
 
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
-    for id in range(len(clientObjs)):
-        clientObjs[id].model.base.adapter.load_state_dict(server_global_adapter.state_dict())
+    # for id in range(len(clientObjs)):
+    #     clientObjs[id].model.base.adapter.load_state_dict(server_global_adapter.state_dict())
 
     return clientObjs, server
 
@@ -82,15 +91,15 @@ def run(args):
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         start_time = time.time()
-        if r % args.eval_interval == 0 or r == args.global_rounds - 1:
+        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r != 0:
             client_acc = []
             for id, client in enumerate(clients):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                f.write('\n')
+            # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
+            #     json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+            #     f.write('\n')
 
         test_time = time.time() - start_time
         print(f'Round {r} test time cost: {test_time:.2f}s')
@@ -134,9 +143,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg/', exist_ok=True)
-    with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
-        json.dump(generate_json_config(args), f)
-        f.write('\n')
+    # os.makedirs(f'./results/fedavg/', exist_ok=True)
+    # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
+    #     json.dump(generate_json_config(args), f)
+    #     f.write('\n')
 
     run(args)

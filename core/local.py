@@ -6,6 +6,7 @@ import torch
 import argparse
 from utils.get_data import data1, data2
 from utils.get_data import get_data
+from utils.data_utils import build_subset
 from utils.server import Server
 from utils.client import Client
 from tqdm import tqdm
@@ -30,6 +31,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
+        cd = build_subset(cd, 100)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
@@ -39,7 +41,6 @@ def run(args):
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
-    zero_shot_acc = []
     # alpha_list, beta_list = [], []
     total_test_time, total_train_time = 0, 0
     for r in range(args.global_rounds):
@@ -48,18 +49,12 @@ def run(args):
         if r % args.eval_interval == 0 or r == args.global_rounds - 1:
             client_acc = []
             for id, client in enumerate(clients):
-                stat = client.test()
-                zero_shot_acc.append(stat[0]) if r == 0 else None
-                print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
-                client_acc.append(stat[0])
-                # alpha_list.append(client.model.base.adapter_alpha.item())
-                # beta_list.append(client.model.base.adapter_beta.item())
+                accs = client.test_on_all_clients(clients)
+                client_acc.append(accs)
 
-            mean_acc = sum(client_acc) / len(client_acc)
             with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
                 json.dump\
-                    ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                    # ({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'alpha': alpha_list, 'beta': beta_list}, f)
+                    ({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
         test_time = time.time() - start_time

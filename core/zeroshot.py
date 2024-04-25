@@ -20,7 +20,7 @@ torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
 def run(args):
     # initialize server
-    server = Server(args)
+    server = Server(args, zeroshot=True)
 
     # set dataset
     dataset = globals()[args.dataset]
@@ -31,11 +31,15 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, 10)
+        print(f'Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
+        cd = build_subset(cd, 100)
+        print(f'Subset Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
+        del cd
 
+    print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
@@ -43,17 +47,17 @@ def run(args):
     total_test_time, total_train_time = 0, 0
     start_time = time.time()
     client_acc = []
+
     for id, client in enumerate(clients):
         stat = client.test()
         zero_shot_acc.append(stat[0])
         print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
         client_acc.append(stat[0])
 
-        mean_acc = sum(client_acc) / len(client_acc)
-        with open(f'./results/zeroshot/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-            json.dump\
-                ({'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-            f.write('\n')
+    with open(f'./results/zeroshot/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
+        json.dump\
+            ({'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        f.write('\n')
 
     test_time = time.time() - start_time
     print(f'test time cost: {test_time:.2f}s')

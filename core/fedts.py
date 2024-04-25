@@ -8,6 +8,7 @@ from models.CLIP import *
 from utils.get_data import data1
 from utils.get_data import data2
 from utils.get_data import get_data
+from utils.data_utils import build_subset
 from utils.server import Server
 from utils.client import Client
 from tqdm import tqdm
@@ -26,7 +27,6 @@ def fedts(weights, clientObjs, server):
     print("fedts... with weights: ", weights)
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
-    alphas = [c.model.base.adapter_alpha for c in clientObjs]
 
     # fedts aggregation
     server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
@@ -34,20 +34,15 @@ def fedts(weights, clientObjs, server):
         param.data.zero_()
 
     for adapter in adapters:
-        for a, w, global_param, param in zip(alphas, weights, server_global_adapter.parameters(), adapter.parameters()):
-            global_param.data += a * w * param.data
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+            global_param.data += w * param.data
 
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
-    for client in clientObjs:
-        client.model.base.global_adapter.load_state_dict(server_global_adapter.state_dict())
-
-    # each client need to minus their own part from the global adapter
-    for client in clientObjs:
-        for global_adapter, adapter in zip(client.model.base.global_adapter.parameters(), client.model.base.adapter.parameters()):
-            global_adapter.data -= adapter.data
+    for id in range(len(clientObjs)):
+        clientObjs[id].model.base.adapter.load_state_dict(server_global_adapter.state_dict())
 
     return clientObjs, server
 
@@ -65,6 +60,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
+        cd = build_subset(cd, 100)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
@@ -74,7 +70,6 @@ def run(args):
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
-    zero_shot_acc = []
     total_test_time, total_train_time = 0, 0
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
@@ -82,14 +77,11 @@ def run(args):
         if r % args.eval_interval == 0 or r == args.global_rounds - 1:
             client_acc = []
             for id, client in enumerate(clients):
-                stat = client.test()
-                zero_shot_acc.append(stat[0]) if r == 0 else None
-                print(f'Client {id} [{client.data_name}] Test Accuracy: {zero_shot_acc[id]} => {stat[0]} %')
-                client_acc.append(stat[0])
+                accs = client.test_on_all_clients(clients)
+                client_acc.append(accs)
 
-            mean_acc = sum(client_acc) / len(client_acc)
             with open(f'./results/fedts/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-                json.dump({'round':r, 'mean_acc': mean_acc, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
         test_time = time.time() - start_time
