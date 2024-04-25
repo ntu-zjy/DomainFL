@@ -56,11 +56,53 @@ class Client(nn.Module):
         for name, param in self.model.named_parameters():
             if 'base' not in name:
                 param.requires_grad_(False)
+            else:
+                param.requires_grad_(True)
 
     def freeze_except_adapter(self):
         for name, param in self.model.named_parameters():
             if 'adapter' not in name or 'global_adapter' in name:
                 param.requires_grad_(False)
+            else:
+                param.requires_grad_(True)
+
+    def local_adapt_train(self, adapt_trainloader, threshold=0.1):
+        # only train the adapter weight to find the balance between the global adapter and the local adapter
+        for name, param in self.model.named_parameters():
+            param.requires_grad_(False)
+        output_dim =self.model.base.output_dim
+        global_adapter_weights = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)) # global adapter weights
+        params = [global_adapter_weights]
+        print('params:', params)
+        optimizer = torch.optim.AdamW(params, lr=1e-5)
+
+        while True:
+            losses = []
+            for i, (inputs, labels) in enumerate(adapt_trainloader):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                optimizer.zero_grad()
+                image_features = self.model.base(inputs)
+                local_adapter_features = self.model.base.adapter(image_features)
+                global_adapter_features = self.model.base.global_adapter(image_features)
+                combined_features = local_adapter_features @ (1 - global_adapter_weights) + global_adapter_features @ global_adapter_weights + image_features
+                outputs = self.model.head(combined_features)
+                loss = self.loss(outputs, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(params, 5)
+                optimizer.step()
+
+                losses.append(loss.item())
+            if np.std(losses) < threshold:
+                print(f'Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses)}')
+                break
+
+        print('params:', params)
+        # merge the local adapter and the global adapter with glocal_adapter_weight
+        local_adapter = self.model.base.adapter.state_dict()['fc.2.weight']
+        global_adapter = self.model.base.global_adapter.state_dict()['fc.2.weight']
+        self.model.base.adapter.state_dict()['fc.2.weight'] = (1 - global_adapter_weights) @ local_adapter +  global_adapter_weights @ global_adapter
+
+        self.freeze_except_adapter()
 
     def fine_tune(self, centralized=None):
         self.model.train()

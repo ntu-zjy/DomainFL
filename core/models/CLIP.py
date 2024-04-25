@@ -23,21 +23,22 @@ class Adapter(nn.Module):
 
 # define a clip image classifier
 class ImageEncoder(torch.nn.Module):
-    def __init__(self, args, zeroshot=False):
+    def __init__(self, args, zeroshot=False, local_adaptation=False):
         super().__init__()
         self.args = args
         name = args.image_encoder_name
         pretrained = d[name]
         self.zeroshot = zeroshot
+        self.local_adaptation = local_adaptation
 
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
-        self.adapter = Adapter(self.model.visual.output_dim, 4, bias=True).to(args.device)
+        self.output_dim = self.model.visual.output_dim
+        self.adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
         self.adapter_init()
-        self.global_adapter = Adapter(self.model.visual.output_dim, 4, bias=True).to(args.device)
+        self.global_adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
         self.global_adapter_init()
 
-        self.global_adapter_weights = list(torch.ones_like(p) for p in self.adapter.parameters())
         self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
 
     # init the adapter with gaussian distribution

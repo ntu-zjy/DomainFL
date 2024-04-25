@@ -9,6 +9,7 @@ from utils.get_data import get_data
 from utils.data_utils import build_subset, concat_datasets
 from utils.server import Server
 from utils.client import Client
+from utils.json_utils import generate_json_config
 from tqdm import tqdm
 import warnings
 warnings.simplefilter("ignore")
@@ -35,6 +36,8 @@ def run(args):
         cds.append(cd)
         cls_head = server.generate_cls_head(cd, data_name)
         cls_heads.append(cls_head)
+
+    print("ensemble the classification heads...")
     mean_cls_head = copy.deepcopy(cls_head)
     for i in range(len(cls_heads) - 1):
         for param, other_param in zip(mean_cls_head.parameters(), cls_heads[i].parameters()):
@@ -42,10 +45,11 @@ def run(args):
     for param in mean_cls_head.parameters():
         param.data /= len(cls_heads)
     conds = concat_datasets(cds)
-    client = Client(args, id, conds.train_dataset, conds.test_dataset, conds.train_loader, conds.test_loader, conds.classnames, init_image_encoder, cls_head, data_name)
+    print("define the client...")
+    client = Client(args, id, conds.train_dataset, conds.test_dataset, conds.train_loader, conds.test_loader, conds.classnames, init_image_encoder, mean_cls_head, data_name)
 
     # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    print("name of the parameters in client.model:", [k for k,_ in client.model.named_parameters()])
+    # print("name of the parameters in client.model:", [k for k,_ in client.model.named_parameters()])
     print("the parameters that require grad in client.model:", [k for k,p in client.model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
@@ -69,7 +73,10 @@ def run(args):
         print(f'Round {r} train time cost: {train_time:.2f}s')
         total_test_time += test_time
         total_train_time += train_time
-
+        with open(f'./results/centrailized/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
+            json.dump\
+                ({'round':r, 'acc': accs, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+            f.write('\n')
         # save the adapter
         torch.save(client.model.base.adapter.state_dict(), f'../weights/centralized_adapter.pt')
 
@@ -97,5 +104,8 @@ if __name__ == "__main__":
         args.device = torch.device(f'cuda:{args.device_id}' if torch.cuda.is_available() else 'cpu')
     else:
         args.device = torch.device('cpu')
-
+    os.makedirs(f'./results/centrailized/', exist_ok=True)
+    with open(f'./results/centrailized/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
+        json.dump(generate_json_config(args), f)
+        f.write('\n')
     run(args)

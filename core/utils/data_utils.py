@@ -51,6 +51,19 @@ def build_subset(dataObject, num_classes):
 
     return dataObject
 
+def local_adaptation_subset_trainloader(train_dataset, train_loader, num_percent):
+    class_to_idx = train_dataset.class_to_idx
+    total_train_samples = len(train_dataset)
+    num_samples = int(total_train_samples * num_percent / 100)
+
+    selected_indices = np.random.choice(total_train_samples, num_samples, replace=False)
+
+    train_dataset = CustomSubset(train_dataset, selected_indices, class_to_idx)
+
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=train_loader.batch_size, num_workers=train_loader.num_workers, pin_memory=True)
+
+    return train_loader
+
 def concat_datasets(dataObjects):
 
     # Concatenate train datasets
