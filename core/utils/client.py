@@ -5,6 +5,7 @@ import copy
 import sys
 sys.path.append('..')
 from models.CLIP import *
+import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 
@@ -50,6 +51,12 @@ class Client(nn.Module):
         model = ImageClassifier(self.image_encoder, self.cls_head)
         return model
 
+    # fine-tune on the whole image encoder
+    def freeze_except_base(self):
+        for name, param in self.model.named_parameters():
+            if 'base' not in name:
+                param.requires_grad_(False)
+
     def freeze_except_adapter(self):
         for name, param in self.model.named_parameters():
             if 'adapter' not in name or 'global_adapter' in name:
@@ -77,16 +84,19 @@ class Client(nn.Module):
             self.scheduler.step()
 
     # return acc, auc, f1, precision, recall
-    def test(self):
+    def test(self, test_dataloader=None):
+        # use own test_dataloader if not provided
+        test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
+
         self.model.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
-            for inputs, labels in self.test_dataloader:
+            for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
-                prob = torch.nn.functional.softmax(outputs, 1)
+                prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
                 predicted_list.extend(predicted.cpu().numpy())
@@ -100,3 +110,13 @@ class Client(nn.Module):
         precision = 100 * precision_score(labels_list, predicted_list, average='macro')
         recall = 100 * recall_score(labels_list, predicted_list, average='macro')
         return round(acc, 4), round(auc, 4), round(f1, 4), round(precision, 4), round(recall, 4)
+
+    def test_on_all_clients(self, clients):
+        # test on all clients
+        accs = []
+        for client in clients:
+            acc, auc, f1, precision, recall = self.test(client.test_dataloader)
+            accs.append(acc)
+        print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
+        return accs
+

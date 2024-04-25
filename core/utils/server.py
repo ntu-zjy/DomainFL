@@ -13,7 +13,7 @@ d = {'RN50':'openai',
     'ViT-L-14': 'laion2b_s32b_b82k'}
 
 class Server(torch.nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, zeroshot=False):
         super().__init__()
         name = args.image_encoder_name
         pretrained = d[name]
@@ -23,7 +23,7 @@ class Server(torch.nn.Module):
 
         self.device = args.device
         self.pretrained_model.to(self.device)
-        self.image_encoder = ImageEncoder(args).to(self.device)
+        self.image_encoder = ImageEncoder(args, zeroshot).to(self.device)
 
     def generate_cls_head(self, dataObject, data_name):
         print(f"build data {data_name} classification head")

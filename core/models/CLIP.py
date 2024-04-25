@@ -8,12 +8,12 @@ d = {'RN50':'openai',
     'ViT-L-14': 'laion2b_s32b_b82k'}
 
 class Adapter(nn.Module):
-    def __init__(self, c_in, reduction=4):
+    def __init__(self, c_in, reduction=4, bias=False):
         super(Adapter, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(c_in, c_in // reduction, bias=False),
+            nn.Linear(c_in, c_in // reduction, bias=bias),
             nn.ReLU(inplace=True),
-            nn.Linear(c_in // reduction, c_in, bias=False),
+            nn.Linear(c_in // reduction, c_in, bias=bias),
             nn.ReLU(inplace=True)
         )
 
@@ -23,22 +23,27 @@ class Adapter(nn.Module):
 
 # define a clip image classifier
 class ImageEncoder(torch.nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, zeroshot=False):
         super().__init__()
         self.args = args
         name = args.image_encoder_name
         pretrained = d[name]
+        self.zeroshot = zeroshot
 
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
-        self.adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
-        # self.adapter_init()
-        self.global_adapter = Adapter(self.model.visual.output_dim, 4).to(args.device)
+        self.adapter = Adapter(self.model.visual.output_dim, 4, bias=True).to(args.device)
+        self.adapter_init()
+        self.global_adapter = Adapter(self.model.visual.output_dim, 4, bias=True).to(args.device)
         self.global_adapter_init()
 
         self.global_adapter_weights = list(torch.ones_like(p) for p in self.adapter.parameters())
         self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
-        # self.adapter_beta = nn.Parameter(torch.tensor(0.0), requires_grad=True)
+
+    # init the adapter with gaussian distribution
+    def adapter_init(self):
+        for param in self.adapter.parameters():
+            nn.init.normal_(param, mean=0, std=0.02)
 
     # set the global adapter to 0
     def global_adapter_init(self):
@@ -47,16 +52,10 @@ class ImageEncoder(torch.nn.Module):
 
     def forward(self, images):
         image_features = self.model.encode_image(images)
-        # return self.adapter_alpha * self.adapter(image_features) + \
-        #     image_features
-        return self.adapter(image_features) + image_features
-        # return self.global_adapter_weights * self.global_adapter(image_features) + \
-        #     (1 - self.global_adapter_weights) * self.adapter(image_features) + \
-        #         image_features
-
-        # return self.adapter_beta * self.global_adapter(image_features) + \
-        #     self.adapter_alpha * self.adapter(image_features) + \
-        #         (1 - self.adapter_alpha) * image_features
+        if self.zeroshot:
+            return image_features
+        else:
+            return self.adapter(image_features) + image_features
 
     def __call__(self, inputs):
         return self.forward(inputs)

@@ -2,6 +2,7 @@ from torch.utils.data import Subset
 import os
 from torch.utils.data import DataLoader, Subset
 from torch.utils.data.dataset import Dataset
+import numpy as np
 
 # def build_subset(dataObject, num_classes, batch_size):
 #     # Ensure num_classes is not greater than available classes
@@ -24,12 +25,17 @@ class CustomSubset(Subset):
         self.class_to_idx = class_to_idx
 
 def build_subset(dataObject, num_classes):
-    # Filter indices and update class_to_idx for both training and testing datasets
-    train_indices = [i for i, (_, label) in enumerate(dataObject.train_dataset) if label < num_classes]
-    test_indices = [i for i, (_, label) in enumerate(dataObject.test_dataset) if label < num_classes]
+    # Use set for faster lookup
+    allowed_labels = set(range(num_classes))
+    valid_class_labels = dataObject.train_dataset.img_labels[dataObject.train_dataset.img_labels['label'].isin(allowed_labels)]
+    new_class_to_idx = dict(zip(valid_class_labels['class_name'], valid_class_labels['label']))
 
-    # Update class_to_idx to reflect only the selected classes
-    new_class_to_idx = {key: val for key, val in dataObject.train_dataset.class_to_idx.items() if val < num_classes}
+    # Filter indices for both training and testing datasets
+    train_labels = dataObject.train_dataset.img_labels['label'].values
+    test_labels = dataObject.test_dataset.img_labels['label'].values
+
+    train_indices = np.where(train_labels < num_classes)[0]
+    test_indices = np.where(test_labels < num_classes)[0]
 
     # Use CustomSubset to create new subsets
     dataObject.train_dataset = CustomSubset(dataObject.train_dataset, train_indices, new_class_to_idx)

@@ -14,8 +14,12 @@ class Infograph:
         self.test_dataset = BaseDomainNetDataset(location, domain='infograph', split='test', transform=val_preprocess)
 
         self.train_loader = DataLoader(self.train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
-        self.test_loader = DataLoader(self.test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+        self.test_loader = DataLoader(self.test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
 
         class_to_idx = self.train_dataset.class_to_idx
-        self.classnames = [c.replace('_', ' ') for c in class_to_idx.keys()]
+        self.update_classnames()
+
+    def update_classnames(self):
+        self.classnames = [c.replace('_', ' ') for c in self.train_dataset.class_to_idx.keys()]
+
 
