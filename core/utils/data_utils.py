@@ -1,7 +1,5 @@
-from torch.utils.data import Subset
-import os
-from torch.utils.data import DataLoader, Subset
-from torch.utils.data.dataset import Dataset
+import copy
+from torch.utils.data import DataLoader, Subset, ConcatDataset
 import numpy as np
 
 # def build_subset(dataObject, num_classes, batch_size):
@@ -22,6 +20,11 @@ import numpy as np
 class CustomSubset(Subset):
     def __init__(self, dataset, indices, class_to_idx):
         super().__init__(dataset, indices)
+        self.class_to_idx = class_to_idx
+
+class CustomConcatDataset(ConcatDataset):
+    def __init__(self, datasets, class_to_idx):
+        super().__init__(datasets)
         self.class_to_idx = class_to_idx
 
 def build_subset(dataObject, num_classes):
@@ -48,7 +51,34 @@ def build_subset(dataObject, num_classes):
 
     return dataObject
 
-# def merge_test_datasets(dataObjects):
-#     # merge test datasets
+def concat_datasets(dataObjects):
 
-#     return merged_dataset
+    # Concatenate train datasets
+    train_datasets = [dataObject.train_dataset for dataObject in dataObjects]
+    class_to_idx = train_datasets[0].class_to_idx
+    train_dataset = CustomConcatDataset(train_datasets, class_to_idx)
+
+    # Concatenate test datasets
+    test_datasets = [dataObject.test_dataset for dataObject in dataObjects]
+    test_dataset = CustomConcatDataset(test_datasets, class_to_idx)
+
+    # Create a new DataLoader for the concatenated train dataset
+    batch_size = dataObjects[0].train_loader.batch_size
+    num_workers = dataObjects[0].train_loader.num_workers
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+
+    # Create a new DataLoader for the concatenated test dataset
+    batch_size = dataObjects[0].test_loader.batch_size
+    num_workers = dataObjects[0].test_loader.num_workers
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+
+
+    # Create a new DataObject with the concatenated datasets
+    dataObject = copy.deepcopy(dataObjects[0])
+    dataObject.train_dataset = train_dataset
+    dataObject.test_dataset = test_dataset
+    dataObject.train_loader = train_loader
+    dataObject.test_loader = test_loader
+    dataObject.update_classnames()
+
+    return dataObject
