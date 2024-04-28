@@ -1,4 +1,5 @@
 import torch
+import copy
 import open_clip
 import torch.nn as nn
 
@@ -23,21 +24,22 @@ class Adapter(nn.Module):
 
 # define a clip image classifier
 class ImageEncoder(torch.nn.Module):
-    def __init__(self, args, zeroshot=False, local_adaptation=False):
+    def __init__(self, args, zeroshot=False):
         super().__init__()
         self.args = args
         name = args.image_encoder_name
         pretrained = d[name]
         self.zeroshot = zeroshot
-        self.local_adaptation = local_adaptation
 
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
         self.output_dim = self.model.visual.output_dim
         self.adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
+
         self.adapter_init()
-        self.global_adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
-        self.global_adapter_init()
+
+        self.global_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
+        self.local_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
 
         self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
 
@@ -45,11 +47,6 @@ class ImageEncoder(torch.nn.Module):
     def adapter_init(self):
         for param in self.adapter.parameters():
             nn.init.normal_(param, mean=0, std=0.02)
-
-    # set the global adapter to 0
-    def global_adapter_init(self):
-        for param in self.global_adapter.parameters():
-            param.data.zero_()
 
     def forward(self, images):
         image_features = self.model.encode_image(images)
@@ -64,18 +61,6 @@ class ImageEncoder(torch.nn.Module):
     def save(self, filename):
         print(f'Saving image encoder to {filename}')
         torch.save(filename)
-
-    @classmethod
-    def load(cls, model_name, filename):
-        print(f'Loading image encoder from {filename}')
-        state_dict = torch.load(filename)
-        return cls.load(model_name, state_dict)
-
-    # @classmethod
-    # def load_from_state_dict(cls, model_name, state_dict):
-    #     self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
-    #         name, pretrained=pretrained)
-    #     self.model.load_from_state_dict(state_dict)
 
 class ClassificationHead(torch.nn.Linear):
     def __init__(self, normalize, weights, biases=None):

@@ -65,7 +65,7 @@ def run(args):
     # initialize clients
     # client image encoder is the same as the global image encoder
     clients, cls_heads, cds = [], [], []
-    for id, data_name in enumerate(dataset):
+    for data_name in dataset:
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
         cd = build_subset(cd, 100)
@@ -80,7 +80,7 @@ def run(args):
             param.data += other_param.data
     for param in mean_cls_head.parameters():
         param.data /= len(cls_heads)
-    for cd in cds:
+    for id, (cd, data_name) in enumerate(zip(cds, dataset)):
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, mean_cls_head, data_name)
         clients.append(client)
 
@@ -93,7 +93,7 @@ def run(args):
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         start_time = time.time()
-        if r % args.eval_interval == 0 or r == args.global_rounds - 1:
+        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r != 0:
             client_acc = []
             for id, client in enumerate(clients):
                 accs = client.test_on_all_clients(clients)
