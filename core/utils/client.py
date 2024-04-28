@@ -58,7 +58,7 @@ class Client(nn.Module):
 
     def load_local_adapter(self):
         # load the local adapter
-        path = f"../weights/{self.args.dataset}_sub{self.args.subset_size}_local/client_{self.id}_adapter.pth"
+        path = f"../weights/{self.args.image_encoder_name}/{self.args.dataset}_sub{self.args.subset_size}_local/client_{self.id}_adapter.pth"
         if os.path.exists(path):
             self.model.base.adapter.load_state_dict(torch.load(path))
             self.model.base.local_adapter.load_state_dict(torch.load(path))
@@ -509,8 +509,9 @@ class Client(nn.Module):
 
     def save_adapter(self, args, algo):
         os.makedirs("../weights", exist_ok=True)
-        os.makedirs(f"../weights/{args.dataset}_sub{args.subset_size}_{algo}", exist_ok=True)
-        dir = f"../weights/{args.dataset}_sub{args.subset_size}_{algo}"
+        os.makedirs(f"../weights/{args.image_encoder_name}", exist_ok=True)
+        os.makedirs(f"../weights/{args.image_encoder_name}/{args.dataset}_sub{args.subset_size}_{algo}", exist_ok=True)
+        dir = f"../weights/{args.image_encoder_name}/{args.dataset}_sub{args.subset_size}_{algo}"
         config = generate_json_config(args)
         if algo != 'local':
             # algorithm except local use 'adapter' as the global adapter to train and aggregate during the federated learning
