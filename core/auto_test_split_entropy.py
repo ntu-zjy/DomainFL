@@ -69,6 +69,8 @@ def run(args):
     start_time = time.time()
     all_clients_test_dataloader = concat_test_datasets(clients)
 
+    client_own_domain_acc = []
+    client_other_domain_acc = []
     for id, client in enumerate(clients):
         client.domain_label = generate_domain_label(id, clients)
 
@@ -128,13 +130,16 @@ def run(args):
         other_domain_labels = torch.cat(other_domain_labels, dim=0)
         all_domain_preds = torch.cat([own_domain_preds, other_domain_preds], dim=0)
         all_domain_labels = torch.cat([own_domain_labels, other_domain_labels], dim=0)
+        own_domain_acc = own_domain_preds.eq(own_domain_labels.view_as(own_domain_preds)).sum().item() / len(own_domain_labels)
+        other_domain_acc = other_domain_preds.eq(other_domain_labels.view_as(other_domain_preds)).sum().item() / len(other_domain_labels)
         print('own domain acc:', own_domain_preds.eq(own_domain_labels.view_as(own_domain_preds)).sum().item() / len(own_domain_labels))
         print('other domain acc:', other_domain_preds.eq(other_domain_labels.view_as(other_domain_preds)).sum().item() / len(other_domain_labels))
         print('all domain acc:', all_domain_preds.eq(all_domain_labels.view_as(all_domain_preds)).sum().item() / len(all_domain_labels))
-
-    # with open(f'./results/fedts_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-    #     json.dump({'round':0, 'acc': client_acc, 'test_time': test_time}, f)
-    #     f.write('\n')
+        client_own_domain_acc.append(own_domain_acc)
+        client_other_domain_acc.append(other_domain_acc)
+    with open(f'./results/{args.algorithm}_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        json.dump({'round':0, 'own_acc': client_own_domain_acc, 'other_acc': client_other_domain_acc, 'test_time': test_time}, f)
+        f.write('\n')
 
     test_time = time.time() - start_time
     print(f'total test time cost: {test_time:.2f}s')
@@ -168,9 +173,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    # os.makedirs(f'./results/fedts_la_split/', exist_ok=True)
-    # with open(f'./results/fedts_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
-    #     json.dump(generate_json_config(args), f)
-    #     f.write('\n')
+    os.makedirs(f'./results/{args.algorithm}_la_split/', exist_ok=True)
+    with open(f'./results/{args.algorithm}_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+        json.dump(generate_json_config(args), f)
+        f.write('\n')
 
     run(args)
