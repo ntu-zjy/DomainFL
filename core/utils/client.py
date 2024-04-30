@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_s
 from .json_utils import generate_json_config
 
 class Client(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True):
+    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
         super().__init__()
         self.args = args
         self.id = id
@@ -34,7 +34,23 @@ class Client(nn.Module):
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
 
-        self.load_local_adapter() if load_local_adapter else None # load the local pretrained model for FL
+        # for auto test data split
+        self.domain_label = None
+        self.pred_domain_label = None
+
+        self.reference = self.generate_reference()
+        self.tp_dataloader = None
+        self.tn_dataloader = None
+        self.fp_dataloader = None
+        self.fn_dataloader = None
+
+
+        if test_split:
+            self.load_local_and_global_adapter()
+        elif load_local_adapter:
+            self.load_local_adapter()
+        else:
+            None # load the local pretrained model for FL
         self.freeze_except_adapter() # freeze the image encoder and the head, only train the adapter
 
         self.model.to(self.device)
@@ -51,10 +67,30 @@ class Client(nn.Module):
                 return 0.5 * (1 + math.cos(math.pi * (current_epoch - self.warm_up) / (self.max_epochs - self.warm_up)))
 
         self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda)
+        self.start_phase = True
+
+    def generate_reference(self):
+        with torch.no_grad():
+            for inputs, _ in self.train_dataloader:
+                inputs = inputs.to(self.device)
+                image_features = self.model.base.model.encode_image(inputs)
+                reference = image_features + self.model.base.local_adapter(image_features)
+                return reference
 
     def construct_model(self):
         model = ImageClassifier(self.image_encoder, self.cls_head)
         return model
+
+    def load_local_and_global_adapter(self):
+        # load the local adapter
+        local_path = f"../weights/{self.args.image_encoder_name}/{self.args.dataset}_sub{self.args.subset_size}_{self.args.algorithm}/client_{self.id}_local_adapter.pth"
+        global_path = f"../weights/{self.args.image_encoder_name}/{self.args.dataset}_sub{self.args.subset_size}_{self.args.algorithm}/client_{self.id}_global_adapter.pth"
+        if os.path.exists(local_path) and os.path.exists(global_path):
+            self.model.base.adapter.load_state_dict(torch.load(global_path))
+            self.model.base.local_adapter.load_state_dict(torch.load(local_path))
+            print(f'Client {self.id} [{self.data_name}] local and global adapter loaded')
+        else:
+            print(f'Client {self.id} [{self.data_name}] local and global adapter not found')
 
     def load_local_adapter(self):
         # load the local adapter
@@ -81,7 +117,7 @@ class Client(nn.Module):
             else:
                 param.requires_grad_(True)
 
-    def local_adaptation(self, adapt_trainloader, threshold=0.1):
+    def local_adaptation(self, adapt_trainloader, threshold=0.05):
         # only train the adapter weight to find the balance between the global adapter and the local adapter
         for param in self.model.parameters():
             param.requires_grad_(False)
@@ -111,7 +147,11 @@ class Client(nn.Module):
                 optimizer.step()
 
                 losses.append(loss.item())
-            if np.std(losses) < threshold:
+
+            # we train the adapter weight in the first round that strictly follow the threshold
+            # after that, we only train the adapter weight in one epoch
+            if np.std(losses) < threshold or self.start_phase == False:
+                self.start_phase = False
                 print(f'Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses)}')
                 break
         print('params:', params)
@@ -119,9 +159,7 @@ class Client(nn.Module):
         local_adapter = self.model.base.local_adapter.state_dict()['fc.2.weight']
         global_adapter = self.model.base.adapter.state_dict()['fc.2.weight']
         for name, param in self.model.named_parameters():
-            if name == 'base.adapter.fc.2.weight':
-                param.data = global_adapter_weights @ global_adapter.data.clone()
-            elif name == 'base.local_adapter.fc.2.weight':
+            if name == 'base.local_adapter.fc.2.weight':
                 param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
         self.freeze_except_adapter()
 
@@ -156,7 +194,9 @@ class Client(nn.Module):
                 optimizer.step()
 
                 losses.append(loss.item())
-            if np.std(losses) < threshold:
+            # we train the adapter weight in the first round that strictly follow the threshold
+            # after that, we only train the adapter weight in one epoch
+            if np.std(losses) < threshold or self.start_phase == False:
                 print(f'Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses)}')
                 break
         # print('params:', params)
@@ -238,12 +278,9 @@ class Client(nn.Module):
             self.scheduler.step()
 
     def normalized_l2_loss(self, teacher_features, student_features, alpha=0.1):
-        # 归一化特征向量
         teacher_norm = F.normalize(teacher_features, p=2, dim=1)
         student_norm = F.normalize(student_features, p=2, dim=1)
-        # 计算L2范数
         l2_distance = (teacher_norm - student_norm).norm(p=2, dim=1)
-        # 最大化L2范数
         loss = -l2_distance.mean()
         return alpha * loss
 
@@ -392,19 +429,6 @@ class Client(nn.Module):
         print(f"Accuracy: {accuracy:.2f}")
         t3 = time.time()
         print(f"Nearest neighbor search completed in {t3 - t2:.2f} seconds")
-
-        # test on all clients
-        accs = []
-        for id, client in enumerate(clients):
-            # use local adapter
-            if id == self.id:
-                acc, auc, f1, precision, recall = self.local_adapter_test(client.test_dataloader)
-            # use global adapter
-            else:
-                acc, auc, f1, precision, recall = self.test(client.test_dataloader)
-            accs.append(acc)
-        print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
-        return accs
 
     def local_adapter_test(self, test_dataloader=None):
         # use own test_dataloader if not provided

@@ -67,7 +67,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, 100)
+        cd = build_subset(cd, args.subset_size)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
@@ -83,8 +83,8 @@ def run(args):
         print(f'==================== Round {r} ====================')
         start_time = time.time()
         # fine tune clients
-        for id, client in enumerate(clients):
-            client.fine_tune()
+        for id in range(len(clients)):
+            clients[id].fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
 

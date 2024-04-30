@@ -95,3 +95,60 @@ def concat_datasets(dataObjects):
     dataObject.update_classnames()
 
     return dataObject
+
+def concat_test_datasets(clientObjects):
+    # Concatenate test datasets
+    train_datasets = [clientObject.train_dataset for clientObject in clientObjects]
+    class_to_idx = train_datasets[0].class_to_idx
+    test_datasets = [clientObject.test_dataset for clientObject in clientObjects]
+    test_dataset = CustomConcatDataset(test_datasets, class_to_idx)
+
+    # Create a new DataLoader for the concatenated test dataset
+    batch_size = clientObjects[0].test_dataloader.batch_size
+    num_workers = clientObjects[0].test_dataloader.num_workers
+    concated_test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+
+    return concated_test_loader
+
+def generate_domain_label(cid, dataObjects):
+    num_test_datasets = [len(dataObject.test_dataset) for dataObject in dataObjects]
+    print("num_test_datasets:", num_test_datasets)
+    # make the domain label for the test dataset
+    domain_label = np.zeros(sum(num_test_datasets))
+    domain_range = num_test_datasets[cid]
+    start_idx = sum(num_test_datasets[:cid])
+    end_idx = start_idx + domain_range
+    domain_label[start_idx:end_idx] = 1
+    return domain_label
+
+def split_dataloader_by_labels(dataloader, predicted_labels, true_labels):
+    # 初始化索引列表
+    tp_indices = []
+    tn_indices = []
+    fp_indices = []
+    fn_indices = []
+
+    # 根据预测标签和真实标签分配索引
+    for index, (pred_label, true_label) in enumerate(zip(predicted_labels, true_labels)):
+        if pred_label == true_label == 1:
+            tp_indices.append(index)
+        elif pred_label == true_label == 0:
+            tn_indices.append(index)
+        elif pred_label == 1 and true_label == 0:
+            fp_indices.append(index)
+        elif pred_label == 0 and true_label == 1:
+            fn_indices.append(index)
+
+    # 创建相应的数据子集
+    tp_dataset = Subset(dataloader.dataset, tp_indices)
+    tn_dataset = Subset(dataloader.dataset, tn_indices)
+    fp_dataset = Subset(dataloader.dataset, fp_indices)
+    fn_dataset = Subset(dataloader.dataset, fn_indices)
+
+    # 创建对应的DataLoader
+    tp_dataloader = DataLoader(tp_dataset, batch_size=dataloader.batch_size, shuffle=False)
+    tn_dataloader = DataLoader(tn_dataset, batch_size=dataloader.batch_size, shuffle=False)
+    fp_dataloader = DataLoader(fp_dataset, batch_size=dataloader.batch_size, shuffle=False)
+    fn_dataloader = DataLoader(fn_dataset, batch_size=dataloader.batch_size, shuffle=False)
+
+    return tp_dataloader, tn_dataloader, fp_dataloader, fn_dataloader

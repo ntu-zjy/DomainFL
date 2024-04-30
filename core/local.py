@@ -48,7 +48,7 @@ def run(args):
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
         start_time = time.time()
-        if (r % args.eval_interval == 0 ) and r!=0:
+        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r!=0:
             client_acc = []
             for id, client in enumerate(clients):
                 accs = client.test_on_all_clients(clients)
@@ -73,7 +73,7 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
-    parser.add_argument('-d','--dataset', type=str, default='data1', help='Dataset name')
+    parser.add_argument('-d','--dataset', type=str, default='data2', help='Dataset name')
     parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
     parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
@@ -82,11 +82,11 @@ if __name__ == "__main__":
     parser.add_argument('-clip','--clip', type=float, default=5, help='Gradient clip')
     parser.add_argument('-bs','--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
-    parser.add_argument('-warm_up','--warm_up', type=int, default=5, help='Warm up epochs')
-    parser.add_argument('-gr','--global_rounds', type=int, default=50, help='Number of global rounds')
+    parser.add_argument('-warm_up','--warm_up', type=int, default=20, help='Warm up epochs')
+    parser.add_argument('-gr','--global_rounds', type=int, default=200, help='Number of global rounds')
     parser.add_argument('-device','--device', type=str, default='cuda', help='Device')
     parser.add_argument('-num_workers','--num_workers', type=int, default=12, help='Number of workers')
-    parser.add_argument('-eval','--eval_interval', type=int, default=1, help='Log interval')
+    parser.add_argument('-eval','--eval_interval', type=int, default=100, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
 

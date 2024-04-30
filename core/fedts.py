@@ -78,8 +78,8 @@ def run(args):
         print(f'==================== Round {r} ====================')
         start_time = time.time()
         # fine tune clients
-        for id, client in enumerate(clients):
-            client.fine_tune()
+        for id in range(len(clients)):
+            clients[id].fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
