@@ -17,6 +17,21 @@ warnings.simplefilter("ignore")
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
+def task_arithmetic_merge(clientObjs, alpha=0.3):
+    print('task arithmetic merge with alpha: ', alpha)
+    merged_model = copy.deepcopy(clientObjs[0].model)
+    # set to zero
+    for p in merged_model.base.adapter.parameters():
+        p.data.zero_()
+    for client in clientObjs:
+        for p1, p2 in zip(merged_model.base.adapter.parameters(), client.model.base.adapter.parameters()):
+            p1.data = alpha * p2.data.clone() + p1.data.clone()
+            print('p1.data:', p1.data)
+            print('p2.data:', p2.data)
+    for client in clientObjs:
+        for pc, p in zip(client.model.base.adapter.parameters(), merged_model.base.adapter.parameters()):
+            pc.data = p.data.clone()
+    return clientObjs
 
 def run(args):
     # initialize server
@@ -31,49 +46,41 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, 100)
+        print(f'Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
+        cd = build_subset(cd, args.subset_size)
+        print(f'Subset Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
+        del cd
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
+    # task arithmetic merge
+    clients = task_arithmetic_merge(clients, alpha=0.3)
+
     print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
-    # alpha_list, beta_list = [], []
     total_test_time, total_train_time = 0, 0
-    for r in range(args.global_rounds):
-        print(f'==================== Round {r} ====================')
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r != 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
+    start_time = time.time()
+    client_acc = []
 
-            # with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-            #     json.dump\
-            #         ({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-            #     f.write('\n')
+    for id, client in enumerate(clients):
+        accs = client.test_on_all_clients(clients)
+        client_acc.append(accs)
 
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
-        start_time = time.time()
-        for id in range(len(clients)):
-            clients[id].fine_tune()
-        train_time = time.time() - start_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
-        total_test_time += test_time
-        total_train_time += train_time
+    with open(f'./results/task_arithmetic/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        json.dump\
+            ({'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        f.write('\n')
 
-        # save the adapter
-        for id, client in enumerate(clients):
-            torch.save(client.model.base.adapter.state_dict(), f'../weights/{id}_adapter.pt')
+    test_time = time.time() - start_time
+    print(f'test time cost: {test_time:.2f}s')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
-    parser.add_argument('-d','--dataset', type=str, default='data1', help='Dataset name')
+    parser.add_argument('-d','--dataset', type=str, default='data2', help='Dataset name')
+    parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
     parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
     parser.add_argument('-optim','--optimizer', type=str, default='AdamW', help='Optimizer name')
@@ -81,11 +88,11 @@ if __name__ == "__main__":
     parser.add_argument('-clip','--clip', type=float, default=5, help='Gradient clip')
     parser.add_argument('-bs','--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
-    parser.add_argument('-warm_up','--warm_up', type=int, default=5, help='Warm up epochs')
-    parser.add_argument('-gr','--global_rounds', type=int, default=50, help='Number of global rounds')
+    parser.add_argument('-warm_up','--warm_up', type=int, default=20, help='Warm up epochs')
+    parser.add_argument('-gr','--global_rounds', type=int, default=200, help='Number of global rounds')
     parser.add_argument('-device','--device', type=str, default='cuda', help='Device')
     parser.add_argument('-num_workers','--num_workers', type=int, default=12, help='Number of workers')
-    parser.add_argument('-eval','--eval_interval', type=int, default=1, help='Log interval')
+    parser.add_argument('-eval','--eval_interval', type=int, default=100, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
 
@@ -96,9 +103,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    # os.makedirs(f'./results/local/', exist_ok=True)
-    # with open(f'./results/local/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
-    #     json.dump(generate_json_config(args), f)
-    #     f.write('\n')
+    os.makedirs(f'./results/task_arithmetic/', exist_ok=True)
+    with open(f'./results/task_arithmetic/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+        json.dump(generate_json_config(args), f)
+        f.write('\n')
 
     run(args)

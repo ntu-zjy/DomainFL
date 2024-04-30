@@ -11,8 +11,9 @@ import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
+from .optimizer.fedprox import PerturbedGradientDescent
 
-class Client(nn.Module):
+class ClientDitto(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
         super().__init__()
         self.args = args
@@ -34,6 +35,9 @@ class Client(nn.Module):
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
 
+        self.mu = args.mu
+        self.plocal_epochs = args.plocal_epochs
+
         # for auto test data split
         self.domain_label = None
         self.pred_domain_label = None
@@ -54,9 +58,12 @@ class Client(nn.Module):
         self.freeze_except_adapter() # freeze the image encoder and the head, only train the adapter
 
         self.model.to(self.device)
+        self.model_per = copy.deepcopy(self.model)
 
         self.params = [p for p in self.model.parameters() if p.requires_grad]
+        self.params_per = [p for p in self.model_per.parameters() if p.requires_grad]
         self.optimizer = torch.optim.AdamW(self.params, lr=self.lr)
+        self.optimizer_per = PerturbedGradientDescent(self.params_per, lr=self.lr, mu=self.mu)
         self.loss = torch.nn.CrossEntropyLoss()
         # warmup + cosine annealing lr scheduler on every epoch
         def lr_lambda(current_epoch):
@@ -166,6 +173,27 @@ class Client(nn.Module):
             if name == 'base.local_adapter.fc.2.weight':
                 param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
         self.freeze_except_adapter()
+
+    def p_fine_tune(self, centralized=None):
+        self.model_per.train()
+        for epoch in range(self.plocal_epochs):
+            pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
+            for i, (inputs, labels) in pbar:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                self.optimizer_per.zero_grad()
+                outputs = self.model_per(inputs)
+                loss = self.loss(outputs, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.params_per, self.args.clip)
+                self.optimizer_per.step(self.params, self.device)
+                lr = self.optimizer_per.param_groups[0]['lr']
+
+                if centralized:
+                    pbar.set_description\
+                        (f'Centralized Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
+                else:
+                    pbar.set_description\
+                        (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
 
     def fine_tune(self, centralized=None):
         self.model.train()
@@ -290,17 +318,17 @@ class Client(nn.Module):
         # print('adapter weight:', self.model.base.adapter.state_dict()['fc.2.weight'])
         # print('global_adapter weight:', self.model.base.global_adapter.state_dict()['fc.2.weight'])
 
-        self.model.eval()
+        self.model_per.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                image_features = self.model.base.model.encode_image(inputs)
-                global_adapter_features = self.model.base.local_adapter(image_features)
+                image_features = self.model_per.base.model.encode_image(inputs)
+                global_adapter_features = self.model_per.base.local_adapter(image_features)
                 global_adapter_features = image_features + global_adapter_features
-                outputs = self.model.head(global_adapter_features)
+                outputs = self.model_per.head(global_adapter_features)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -320,17 +348,17 @@ class Client(nn.Module):
         # use own test_dataloader if not provided
         test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
 
-        self.model.eval()
+        self.model_per.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                image_features = self.model.base.model.encode_image(inputs)
-                global_adapter_features = self.model.base.global_adapter(image_features)
+                image_features = self.model_per.base.model.encode_image(inputs)
+                global_adapter_features = self.model_per.base.global_adapter(image_features)
                 global_adapter_features += image_features
-                outputs = self.model.head(global_adapter_features)
+                outputs = self.model_per.head(global_adapter_features)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -350,14 +378,14 @@ class Client(nn.Module):
         # use own test_dataloader if not provided
         test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
 
-        self.model.eval()
+        self.model_per.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                outputs = self.model(inputs)
+                outputs = self.model_per(inputs)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())

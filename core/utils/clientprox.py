@@ -11,8 +11,9 @@ import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
+from .optimizer.fedprox import PerturbedGradientDescent
 
-class Client(nn.Module):
+class ClientProx(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
         super().__init__()
         self.args = args
@@ -33,6 +34,8 @@ class Client(nn.Module):
         self.image_encoder = copy.deepcopy(image_encoder)
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
+
+        self.mu = args.mu
 
         # for auto test data split
         self.domain_label = None
@@ -56,7 +59,7 @@ class Client(nn.Module):
         self.model.to(self.device)
 
         self.params = [p for p in self.model.parameters() if p.requires_grad]
-        self.optimizer = torch.optim.AdamW(self.params, lr=self.lr)
+        self.optimizer = PerturbedGradientDescent(self.params, lr=self.lr, mu=self.mu)
         self.loss = torch.nn.CrossEntropyLoss()
         # warmup + cosine annealing lr scheduler on every epoch
         def lr_lambda(current_epoch):
@@ -100,6 +103,7 @@ class Client(nn.Module):
         # load the local adapter
         path = f"../weights/{self.args.image_encoder_name}/{self.args.dataset}_sub{self.args.subset_size}_local/client_{self.id}_adapter.pth"
         if os.path.exists(path):
+            self.model.base.global_adapter.load_state_dict(torch.load(path))
             self.model.base.adapter.load_state_dict(torch.load(path))
             self.model.base.local_adapter.load_state_dict(torch.load(path))
             print(f'Client {self.id} [{self.data_name}] local adapter loaded')
@@ -178,7 +182,8 @@ class Client(nn.Module):
                 loss = self.loss(outputs, labels)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
-                self.optimizer.step()
+                global_params = [p for p in self.model.base.global_adapter.parameters()]
+                self.optimizer.step(global_params, self.device)
                 lr = self.optimizer.param_groups[0]['lr']
 
                 if centralized:

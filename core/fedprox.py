@@ -10,8 +10,7 @@ from utils.get_data import data2
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
-from utils.client import Client
-from tqdm import tqdm
+from utils.clientprox import ClientProx
 from utils.json_utils import generate_json_config
 import warnings
 warnings.simplefilter("ignore")
@@ -40,24 +39,18 @@ def fedavg(weights, clientObjs, server):
         param.data.zero_()
 
     for adapter in adapters:
-        for w, (name, global_param), param in zip(weights, server_global_adapter.named_parameters(), adapter.parameters()):
-            global_param.data += w * param.data
-
-    # cal cos simiarity
-    import torch.nn.functional as F
-    from collections import OrderedDict
-    sim = OrderedDict()
-    for adapter in adapters:
-        for (name, global_param), param in zip(server_global_adapter.named_parameters(), adapter.parameters()):
-            sim[name] = F.cosine_similarity(global_param.flatten(), param.flatten(), dim=0)
-        print("cosine similarity: ", sim)
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+            global_param.data += w * param.data.clone()
 
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
-    # for id in range(len(clientObjs)):
-    #     clientObjs[id].model.base.adapter.load_state_dict(server_global_adapter.state_dict())
+    # param will be covered as global param
+    for id in range(len(clientObjs)):
+        for param, global_param, global_param_temp in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters(), clientObjs[id].model.base.global_adapter.parameters()):
+            param.data = global_param.data.clone()
+            global_param_temp.data = global_param.data.clone()
 
     return clientObjs, server
 
@@ -75,9 +68,9 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, 100)
+        cd = build_subset(cd, args.subset_size)
         cls_head = server.generate_cls_head(cd, data_name)
-        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        client = ClientProx(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
         del cd
 
@@ -86,23 +79,9 @@ def run(args):
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
-    zero_shot_acc = []
     total_test_time, total_train_time = 0, 0
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r != 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
-
-            # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'a+') as f:
-            #     json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-            #     f.write('\n')
-
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
         start_time = time.time()
         # fine tune clients
         for id in range(len(clients)):
@@ -115,17 +94,38 @@ def run(args):
         # fedavg algorithm
         clients, server = fedavg(weights, clients, server)
 
+        start_time = time.time()
+        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r!=0:
+            client_acc = []
+            for id, client in enumerate(clients):
+                accs = client.test_on_all_clients(clients)
+                client_acc.append(accs)
+
+            with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+                f.write('\n')
+
+        test_time = time.time() - start_time
+        print(f'Round {r} test time cost: {test_time:.2f}s')
+
         total_test_time += test_time
         total_train_time += train_time
+
+    total_time_cost = total_test_time + total_train_time
+    print("save finetuned local models")
+    for client in clients:
+        client.save_adapter(args, algo='fedavg')
+    print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
     parser.add_argument('-d','--dataset', type=str, default='data1', help='Dataset name')
+    parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
     parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
     parser.add_argument('-optim','--optimizer', type=str, default='AdamW', help='Optimizer name')
     parser.add_argument('-lr','--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('-clip','--clip', type=float, default=1.0, help='Gradient clip')
+    parser.add_argument('-clip','--clip', type=float, default=5, help='Gradient clip')
     parser.add_argument('-bs','--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('-warm_up','--warm_up', type=int, default=5, help='Warm up epochs')
@@ -136,6 +136,8 @@ if __name__ == "__main__":
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
 
+    parser.add_argument('-mu','--mu', type=float, default=0.001, help='Mu for fedprox')
+
     args = parser.parse_args()
 
     if args.device == 'cuda':
@@ -143,9 +145,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    # os.makedirs(f'./results/fedavg/', exist_ok=True)
-    # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}.json', 'w+') as f:
-    #     json.dump(generate_json_config(args), f)
-    #     f.write('\n')
+    os.makedirs(f'./results/fedprox/', exist_ok=True)
+    with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+        json.dump(generate_json_config(args), f)
+        f.write('\n')
 
     run(args)

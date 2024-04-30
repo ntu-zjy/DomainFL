@@ -78,6 +78,7 @@ def run(args):
         model.eval()
         with torch.no_grad():
             client.pred_domain_label = max_entropy_classify(model, all_clients_test_dataloader, args)
+            acc = np.sum(client.pred_domain_label == client.domain_label) / len(client.domain_label)
             print('accuracy:', np.sum(client.pred_domain_label == client.domain_label) / len(client.domain_label))
 
         client.tp_dataloader, client.tn_dataloader, client.fp_dataloader, client.fn_dataloader = \
@@ -137,8 +138,8 @@ def run(args):
         print('all domain acc:', all_domain_preds.eq(all_domain_labels.view_as(all_domain_preds)).sum().item() / len(all_domain_labels))
         client_own_domain_acc.append(own_domain_acc)
         client_other_domain_acc.append(other_domain_acc)
-    with open(f'./results/{args.algorithm}_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-        json.dump({'round':0, 'own_acc': client_own_domain_acc, 'other_acc': client_other_domain_acc, 'test_time': test_time}, f)
+    with open(f'./results/{args.algorithm}_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        json.dump({'round':0, 'own_acc': client_own_domain_acc, 'other_acc': client_other_domain_acc, 'domain_acc': acc}, f)
         f.write('\n')
 
     test_time = time.time() - start_time
@@ -173,8 +174,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/{args.algorithm}_la_split/', exist_ok=True)
-    with open(f'./results/{args.algorithm}_la_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/{args.algorithm}_split/', exist_ok=True)
+    with open(f'./results/{args.algorithm}_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

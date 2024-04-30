@@ -12,7 +12,7 @@ import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
 
-class Client(nn.Module):
+class ClientMOON(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
         super().__init__()
         self.args = args
@@ -33,6 +33,9 @@ class Client(nn.Module):
         self.image_encoder = copy.deepcopy(image_encoder)
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
+        self.old_adapter = copy.deepcopy(self.model.base.adapter)
+        self.tau = args.tau
+        self.mu = args.mu
 
         # for auto test data split
         self.domain_label = None
@@ -174,8 +177,17 @@ class Client(nn.Module):
             for i, (inputs, labels) in pbar:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                encode_rep = self.model.base.model.encode_image(inputs)
+                rep = self.model.base.adapter(encode_rep) + encode_rep
+                outputs = self.model.head(rep)
                 loss = self.loss(outputs, labels)
+                rep_old = encode_rep + self.old_adapter(encode_rep)
+                rep_old = rep_old.detach()
+                rep_global = encode_rep + self.model.base.global_adapter(encode_rep)
+                rep_global = rep_global.detach()
+                loss_con = - torch.log(torch.exp(F.cosine_similarity(rep, rep_global) / self.tau) / (torch.exp(F.cosine_similarity(rep, rep_global) / self.tau) + torch.exp(F.cosine_similarity(rep, rep_old) / self.tau)))
+                loss += self.mu * torch.mean(loss_con)
+
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
                 self.optimizer.step()
@@ -188,6 +200,7 @@ class Client(nn.Module):
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
             self.scheduler.step()
+        self.old_adapter = copy.deepcopy(self.model.base.adapter)
 
     def whitebox_domain_adaptive_test(self, clients):
         # test on all clients

@@ -41,8 +41,6 @@ class ImageEncoder(torch.nn.Module):
         self.global_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
         self.local_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
 
-        self.adapter_alpha = nn.Parameter(torch.tensor(0.0), requires_grad=True)
-
     # init the adapter with gaussian distribution
     def adapter_init(self):
         for param in self.adapter.parameters():
