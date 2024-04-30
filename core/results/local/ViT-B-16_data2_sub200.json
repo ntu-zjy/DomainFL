@@ -1,0 +1,1 @@
+{"base_model": "CLIP", "dataset": "data2", "subset_size": 200, "image_encoder_name": "ViT-B-16", "optimizer": "AdamW", "batch_size": 128, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 20, "seed": 1}
