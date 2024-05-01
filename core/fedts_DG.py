@@ -5,34 +5,34 @@ import time
 import torch
 import argparse
 from models.CLIP import *
-from utils.get_data import data1, data2, source, target
+from utils.get_data import data1
+from utils.get_data import data2, source, target
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
 from utils.client import Client
 from utils.json_utils import generate_json_config
 import warnings
+import random
+import numpy as np
 warnings.simplefilter("ignore")
 torch.backends.cudnn.deterministic = True
+random.seed(1)
+np.random.seed(1)
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
-def calculate_fedavg_weights(clients):
-    total_train_num = 0
-    num_list = []
-    for c in clients:
-        train_num = len(c.train_dataloader) * c.batch_size
-        total_train_num += train_num
-        num_list.append(train_num)
-    weights = [num/total_train_num for num in num_list]
+def calculate_fedts_weights(clients):
+    # every client use the same weight
+    weights = [1/len(clients) for c in clients]
     return weights
 
-def fedavg(weights, clientObjs, server):
-    print("FedAvg... with weights: ", weights)
+def fedts(weights, clientObjs, server):
+    print("fedts... with weights: ", weights)
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
 
-    # fedavg aggregation
+    # fedts aggregation
     server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
     for param in server_global_adapter.parameters():
         param.data.zero_()
@@ -40,6 +40,7 @@ def fedavg(weights, clientObjs, server):
     for adapter in adapters:
         for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data.clone()
+
     print("global data:", server_global_adapter.state_dict()["fc.2.weight"])
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
@@ -88,9 +89,9 @@ def run(args):
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
         # after fine tuning clients, we need to aggregate the adapters
-        weights = calculate_fedavg_weights(clients)
-        # fedavg algorithm
-        clients, server = fedavg(weights, clients, server)
+        weights = calculate_fedts_weights(clients)
+        # fedts algorithm
+        clients, server = fedts(weights, clients, server)
 
         start_time = time.time()
         if (r % args.eval_interval == 0 or r == args.global_rounds - 1) and r!=0:
@@ -99,7 +100,7 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedavg_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/fedts_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -112,7 +113,7 @@ def run(args):
     total_time_cost = total_test_time + total_train_time
     print("save finetuned local models")
     for client in clients:
-        client.save_adapter(args, algo='fedavg_DG')
+        client.save_adapter(args, algo='fedts_DG')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":
@@ -141,8 +142,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg_DG/', exist_ok=True)
-    with open(f'./results/fedavg_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/fedts_DG/', exist_ok=True)
+    with open(f'./results/fedts_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

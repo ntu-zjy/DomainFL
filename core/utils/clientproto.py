@@ -11,8 +11,9 @@ import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
+from collections import defaultdict
 
-class Client(nn.Module):
+class ClientProto(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
         super().__init__()
         self.args = args
@@ -33,6 +34,12 @@ class Client(nn.Module):
         self.image_encoder = copy.deepcopy(image_encoder)
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
+
+        self.protos = None
+        self.global_protos = None
+        self.loss_mse = nn.MSELoss()
+
+        self.lamda = args.lamda
 
         # for auto test data split
         self.domain_label = None
@@ -168,14 +175,30 @@ class Client(nn.Module):
         self.freeze_except_adapter()
 
     def fine_tune(self, centralized=None):
+        protos = defaultdict(list)
         self.model.train()
         for epoch in range(self.local_epochs):
             pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
             for i, (inputs, labels) in pbar:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                rep = self.model.base.model.encode_image(inputs)
+                rep = rep + self.model.base.adapter(rep)
+                outputs = self.model.head(rep)
                 loss = self.loss(outputs, labels)
+
+                if self.global_protos is not None:
+                    proto_new = copy.deepcopy(rep.detach())
+                    for i, yy in enumerate(labels):
+                        y_c = yy.item()
+                        if type(self.global_protos[y_c]) != type([]):
+                            proto_new[i, :] = self.global_protos[y_c].data
+                    loss += self.loss_mse(proto_new, rep) * self.lamda
+
+                for i, yy in enumerate(labels):
+                    y_c = yy.item()
+                    protos[y_c].append(rep[i, :].detach().data)
+
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
                 self.optimizer.step()
@@ -187,7 +210,13 @@ class Client(nn.Module):
                 else:
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
+
+            self.protos = agg_func(protos)
+
             self.scheduler.step()
+
+    def set_protos(self, global_protos):
+        self.global_protos = global_protos
 
     def whitebox_domain_adaptive_test(self, clients):
         # test on all clients
@@ -353,31 +382,33 @@ class Client(nn.Module):
         self.model.eval()
         predicted_list = []
         labels_list = []
-        prob_list = []
-        with torch.no_grad():
-            for inputs, labels in test_dataloader:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-                outputs = self.model(inputs)
-                prob = F.softmax(outputs, 1)
-                _, predicted = torch.max(prob, 1)
-                prob_list.append(prob.cpu().numpy())
-                predicted_list.extend(predicted.cpu().numpy())
-                labels_list.extend(labels.cpu().numpy())
+        if self.global_protos is not None:
+            with torch.no_grad():
+                for inputs, labels in test_dataloader:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    rep = self.model.base.model.encode_image(inputs)
+                    rep = rep + self.model.base.adapter(rep)
+                    outputs = float('inf') * torch.ones(labels.shape[0], self.args.subset_size).to(self.device)
+                    for i, r in enumerate(rep):
+                        for j, pro in self.global_protos.items():
+                            if type(pro) != type([]):
+                                outputs[i, j] = self.loss_mse(r, pro)
+                    predicted = torch.argmin(outputs, dim=1)
+                    predicted_list.extend(predicted.cpu().numpy())
+                    labels_list.extend(labels.cpu().numpy())
 
-        prob_list = np.vstack(prob_list)
-
-        acc = 100 * accuracy_score(labels_list, predicted_list)
-        auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
-        f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
-        precision = 100 * precision_score(labels_list, predicted_list, average='macro')
-        recall = 100 * recall_score(labels_list, predicted_list, average='macro')
-        return round(acc, 4), round(auc, 4), round(f1, 4), round(precision, 4), round(recall, 4)
+            acc = 100 * accuracy_score(labels_list, predicted_list)
+            # auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
+            # f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
+            # precision = 100 * precision_score(labels_list, predicted_list, average='macro')
+            # recall = 100 * recall_score(labels_list, predicted_list, average='macro')
+        return round(acc, 4)
 
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
         for client in clients:
-            acc, auc, f1, precision, recall = self.test(client.test_dataloader)
+            acc = self.test(client.test_dataloader)
             accs.append(acc)
         print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
         return accs
@@ -402,3 +433,18 @@ class Client(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
+def agg_func(protos):
+    """
+    Returns the average of the weights.
+    """
+
+    for [label, proto_list] in protos.items():
+        if len(proto_list) > 1:
+            proto = 0 * proto_list[0].data
+            for i in proto_list:
+                proto += i.data
+            protos[label] = proto / len(proto_list)
+        else:
+            protos[label] = proto_list[0]
+
+    return protos

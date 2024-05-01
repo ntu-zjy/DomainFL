@@ -5,7 +5,8 @@ import time
 import torch
 import argparse
 from models.CLIP import *
-from utils.get_data import data1, data2, source, target
+from utils.get_data import data1
+from utils.get_data import data2
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
@@ -13,7 +14,7 @@ from utils.client import Client
 from utils.json_utils import generate_json_config
 import warnings
 warnings.simplefilter("ignore")
-torch.backends.cudnn.deterministic = True
+
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
@@ -40,7 +41,7 @@ def fedavg(weights, clientObjs, server):
     for adapter in adapters:
         for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data.clone()
-    print("global data:", server_global_adapter.state_dict()["fc.2.weight"])
+
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
@@ -99,7 +100,7 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedavg_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/fedavgDBE/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -112,7 +113,7 @@ def run(args):
     total_time_cost = total_test_time + total_train_time
     print("save finetuned local models")
     for client in clients:
-        client.save_adapter(args, algo='fedavg_DG')
+        client.save_adapter(args, algo='fedavgDBE')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":
@@ -133,6 +134,8 @@ if __name__ == "__main__":
     parser.add_argument('-eval','--eval_interval', type=int, default=1, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
+    parser.add_argument('-mo', "--momentum", type=float, default=0.1)
+    parser.add_argument('-klw', "--kl_weight", type=float, default=0.0)
 
     args = parser.parse_args()
 
@@ -141,8 +144,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg_DG/', exist_ok=True)
-    with open(f'./results/fedavg_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/fedavgDBE/', exist_ok=True)
+    with open(f'./results/fedavgDBE/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

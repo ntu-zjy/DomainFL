@@ -14,7 +14,7 @@ from utils.client import Client
 from utils.json_utils import generate_json_config
 import warnings
 warnings.simplefilter("ignore")
-
+torch.backends.cudnn.deterministic = True
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
@@ -48,6 +48,7 @@ def fedavg(weights, clientObjs, server):
         for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data.clone()
 
+    print("global data:", server_global_adapter.state_dict()["fc.2.weight"])
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
@@ -78,6 +79,7 @@ def run(args):
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
         del cd
+
 
     # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
     # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
@@ -129,7 +131,7 @@ def run(args):
     total_time_cost = total_test_time + total_train_time
     print("save finetuned local models")
     for client in clients:
-        client.save_adapter(args, algo='fedavg_la')
+        client.save_adapter(args, algo='fedavg_la_DG')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":

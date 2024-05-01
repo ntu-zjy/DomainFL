@@ -114,7 +114,7 @@ def run(args):
     total_time_cost = total_test_time + total_train_time
     print("save finetuned local models")
     for client in clients:
-        client.save_adapter(args, algo='fedavg')
+        client.save_adapter(args, algo='fedmoon')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":

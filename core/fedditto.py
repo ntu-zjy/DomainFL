@@ -101,7 +101,7 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/fedditto/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -114,7 +114,7 @@ def run(args):
     total_time_cost = total_test_time + total_train_time
     print("save finetuned local models")
     for client in clients:
-        client.save_adapter(args, algo='fedavg')
+        client.save_adapter(args, algo='fedditto')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":
@@ -145,8 +145,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg/', exist_ok=True)
-    with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/fedditto/', exist_ok=True)
+    with open(f'./results/fedditto/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

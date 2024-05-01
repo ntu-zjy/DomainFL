@@ -41,7 +41,6 @@ def fedavg(weights, clientObjs, server):
     for adapter in adapters:
         for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
             global_param.data += w * param.data.clone()
-
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
