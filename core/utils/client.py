@@ -129,8 +129,75 @@ class Client(nn.Module):
             param.requires_grad_(False)
 
         output_dim =self.model.base.output_dim
-        global_adapter_weights = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)) # global adapter weights
-        Identical_matrix = torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)
+        global_adapter_weights_1 = nn.Parameter(torch.eye(n=output_dim//4, dtype=torch.float32).to(self.args.device)) # global adapter weights
+        global_adapter_weights_2 = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)) # global adapter weights
+        Identical_matrix_1 = torch.eye(n=output_dim//4, dtype=torch.float32).to(self.args.device)
+        Identical_matrix_2 = torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)
+        params = [global_adapter_weights_1, global_adapter_weights_2]
+        # print('params:', params)
+        optimizer = torch.optim.AdamW(params, lr=self.lr)
+        # print('global_adapter:', self.model.base.adapter.state_dict()['fc.2.weight'])
+        self.model.train()
+        losses = []
+        while True:
+            for i, (inputs, labels) in enumerate(adapt_trainloader):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                optimizer.zero_grad()
+                image_features = self.model.base.model.encode_image(inputs)
+                adapter_weight_1 = self.model.base.adapter.state_dict()['fc.0.weight']
+                adapter_weight_2 = self.model.base.adapter.state_dict()['fc.2.weight']
+                local_adapter_weight_1 = self.model.base.local_adapter.state_dict()['fc.0.weight']
+                local_adapter_weight_2 = self.model.base.local_adapter.state_dict()['fc.2.weight']
+
+                g1 = image_features @ adapter_weight_1.data.clone().t() @ global_adapter_weights_1
+                l1 = image_features @ local_adapter_weight_1.data.clone().t() @ (Identical_matrix_1 - global_adapter_weights_1)
+
+                g1 = g1 + l1
+                g1 = F.relu(g1)
+
+                g2 = g1 @ adapter_weight_2.data.clone().t() @ global_adapter_weights_2
+                l2 = g1 @ local_adapter_weight_2.data.clone().t() @ (Identical_matrix_2 - global_adapter_weights_2)
+
+                g2 = g2 + l2
+                g2 = F.relu(g2)
+
+                combined_features = g2 + image_features
+
+                outputs = self.model.head(combined_features)
+                # mse_loss =  F.mse_loss(l1, global_shifted_adapter_features)
+                loss = self.loss(outputs, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(params, self.args.clip)
+                optimizer.step()
+
+                losses.append(loss.item())
+
+            if self.start_phase == False:
+                break
+
+            # we train the adapter weight in the first round that strictly follow the threshold
+            # after that, we only train the adapter weight in one epoch
+            if np.std(losses[-num_losses:]) < threshold and len(losses) > num_losses:
+                self.start_phase = False
+                print(f'local epoch {i} Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses[-num_losses:])}')
+                break
+
+        for name, param in self.model.named_parameters():
+            if name == 'base.adapter.fc.0.weight':
+                param.data = global_adapter_weights_1.t() @ adapter_weight_1.data.clone() + (Identical_matrix_1 - global_adapter_weights_1).t() @ local_adapter_weight_1.data.clone()
+            if name == 'base.adapter.fc.2.weight':
+                param.data = global_adapter_weights_2.t() @ adapter_weight_2.data.clone() + (Identical_matrix_2 - global_adapter_weights_2).t() @ local_adapter_weight_2.data.clone()
+
+        self.freeze_except_adapter()
+
+    def local_adaptation2(self, adapt_trainloader, threshold=0.1, num_losses=10):
+        # only train the adapter weight to find the balance between the global adapter and the local adapter
+        for param in self.model.parameters():
+            param.requires_grad_(False)
+
+        output_dim =self.model.base.output_dim
+        global_adapter_weights = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float64).to(self.args.device)) # global adapter weights
+        Identical_matrix = torch.eye(n=output_dim, dtype=torch.float64).to(self.args.device)
         params = [global_adapter_weights]
         # print('params:', params)
         optimizer = torch.optim.AdamW(params, lr=self.lr)
@@ -140,16 +207,18 @@ class Client(nn.Module):
         while True:
             for i, (inputs, labels) in enumerate(adapt_trainloader):
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
+                optimizer.zero_grad()
                 image_features = self.model.base.model.encode_image(inputs)
                 global_adapter_features = self.model.base.adapter(image_features)
                 local_adapter_features = self.model.base.local_adapter(image_features)
-                local_shifted_adapter_features = local_adapter_features @ global_adapter_weights
-                global_shifted_adapter_features = global_adapter_features @ (Identical_matrix - global_adapter_weights)
-                combined_features = local_shifted_adapter_features + global_shifted_adapter_features + image_features
+                local_shifted_adapter_features = local_adapter_features
+
+                global_shifted_adapter_features = global_adapter_features @ global_adapter_weights
+                combined_features = global_shifted_adapter_features + image_features
 
                 outputs = self.model.head(combined_features)
-                loss = self.loss(outputs, labels)
-                optimizer.zero_grad()
+                mse_loss =  F.mse_loss(local_shifted_adapter_features, global_shifted_adapter_features)
+                loss = self.loss(outputs, labels) + 10 * mse_loss
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(params, self.args.clip)
                 optimizer.step()
@@ -173,8 +242,8 @@ class Client(nn.Module):
         # print('local_adapter shape:', local_adapter.data.shape)
 
         for name, param in self.model.named_parameters():
-            if name == 'base.local_adapter.fc.2.weight':
-                param.data = global_adapter_weights.t() @ local_adapter.data.clone() + (Identical_matrix - global_adapter_weights).t() @ global_adapter.data.clone()
+            if name == 'base.adapter.fc.2.weight':
+                param.data = global_adapter_weights.t() @ global_adapter.data.clone()
         self.freeze_except_adapter()
 
     def fine_tune(self, centralized=None):
@@ -397,7 +466,7 @@ class Client(nn.Module):
         # use own test_dataloader if not provided
         test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
 
-        print("global data:", self.model.base.adapter.state_dict()["fc.2.weight"])
+        # print("global data:", self.model.base.adapter.state_dict()["fc.2.weight"])
         self.model.eval()
         predicted_list = []
         labels_list = []

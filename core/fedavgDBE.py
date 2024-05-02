@@ -10,7 +10,7 @@ from utils.get_data import data2
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
-from utils.client import Client
+from utils.clientavgDBE import Client
 from utils.json_utils import generate_json_config
 import warnings
 warnings.simplefilter("ignore")

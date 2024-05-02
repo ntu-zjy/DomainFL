@@ -19,7 +19,7 @@ torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
 def local_adaptation(clientObj, adapt_trainloader=None):
-    adapt_trainloader = local_adaptation_subset_trainloader(clientObj.train_dataset, clientObj.train_dataloader, 10)
+    adapt_trainloader = local_adaptation_subset_trainloader(clientObj.train_dataset, clientObj.train_dataloader, 50)
 
     clientObj.local_adaptation(adapt_trainloader)
     return clientObj

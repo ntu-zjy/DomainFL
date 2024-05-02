@@ -43,7 +43,7 @@ def run(args):
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name, test_split=True)
         clients.append(client)
         del cd
-    print('last layer of adapter in clients[0].model:', clients[0].model.base.adapter.state_dict()['fc.2.weight'])
+    # print('last layer of adapter in clients[0].model:', clients[0].model.base.adapter.state_dict()['fc.2.weight'])
     # build target test data
     for target_name in target:
         target_data = get_data(target_name, server.train_preprocess, server.val_preprocess, f'./target/{target_name}', args.batch_size, args.num_workers)

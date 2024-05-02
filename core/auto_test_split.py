@@ -17,6 +17,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import OneClassSVM
+from sklearn.cluster import DBSCAN
+from sklearn.metrics import confusion_matrix
 
 import warnings
 warnings.simplefilter("ignore")
@@ -42,8 +44,8 @@ def classify_with_one_class_svm(train_features, test_features, domain_label):
     predicted_labels = (predicted_labels + 1) / 2
 
     acc = np.mean(predicted_labels == domain_label)
-
-    return predicted_labels, acc
+    cm = confusion_matrix(domain_label, predicted_labels)
+    return predicted_labels, acc, cm
 
 def classify_with_knn(train_features, test_features, domain_label):
     # 数据归一化
@@ -75,9 +77,87 @@ def classify_with_knn(train_features, test_features, domain_label):
     predicted_labels = np.array([np.bincount(vote).argmax() for vote in votes])  # 对每个测试样本，计算最频繁的类别
 
     acc = np.mean(predicted_labels == domain_label)
+    cm = confusion_matrix(domain_label, predicted_labels)
+    return predicted_labels, acc, cm
 
-    return predicted_labels, acc
+def classify_with_dbscan(train_features, test_features, domain_label, eps=0.3, min_samples=5):
+    # 数据归一化
+    scaler = StandardScaler()
+    train_features_norm = scaler.fit_transform(train_features)
+    test_features_norm = scaler.transform(test_features)
 
+    # 使用DBSCAN进行测试数据的聚类
+    db = DBSCAN(eps=eps, min_samples=min_samples)
+    db.fit(test_features_norm)
+    labels = db.labels_
+
+    # 将所有-1标签（噪声）转化为0
+    labels[labels == -1] = 0
+
+    # 使用最近邻来确定哪一类和train_features更接近
+    nbrs = NearestNeighbors(n_neighbors=1)
+    nbrs.fit(train_features_norm)
+
+    # 计算每个类别的中心点
+    class_0_center = np.mean(test_features_norm[labels == 0], axis=0, keepdims=True)
+    class_1_center = np.mean(test_features_norm[labels == 1], axis=0, keepdims=True)
+
+    # 找到每个类别中心的最近train_features
+    distances_0, _ = nbrs.kneighbors(class_0_center)
+    distances_1, _ = nbrs.kneighbors(class_1_center)
+
+    # 确定哪个类别更接近train_features
+    if distances_0 < distances_1:
+        labels[labels == 1] = 2  # 临时标记为2
+        labels[labels == 0] = 1  # 0类更接近，把原1类标记为2，原0类标记为1
+        labels[labels == 2] = 0  # 把临时标记2转换为0
+
+    predicted_labels = labels
+
+    # 计算准确率和混淆矩阵
+    acc = np.mean(predicted_labels == domain_label)
+    cm = confusion_matrix(domain_label, predicted_labels)
+
+    return predicted_labels, acc, cm
+
+def post_process_dbscan_clusters(labels, features):
+    from collections import Counter
+
+    # 计数每个聚类中的点
+    cluster_counts = Counter(labels)
+
+    # 将-1的点改为0
+
+
+    # 选择最大的两个聚类
+    if len(cluster_counts) >= 2:
+        main_clusters = cluster_counts.most_common(2)
+        main_clusters = [item[0] for item in main_clusters]
+    else:
+        # 如果不足两个聚类，则认为所有非噪声点属于一个聚类
+        main_clusters = cluster_counts.most_common(1)
+        main_clusters = [item[0] for item in main_clusters] * 2  # 重复使用同一聚类
+
+    # 为这两个聚类分配标签 0 和 1
+    cluster_label_map = {main_clusters[0]: 0, main_clusters[1]: 1}
+
+    # 使用最近邻重新分配剩余点的聚类标签
+    nbrs = NearestNeighbors(n_neighbors=1)
+    nbrs.fit(features[labels == main_clusters[0]], features[labels == main_clusters[1]])
+    distances, indices = nbrs.kneighbors(features[labels == -1])
+
+    # 映射剩余点到最近的主聚类
+    for idx, point in enumerate(labels == -1):
+        if point:
+            nearest_cluster = main_clusters[indices[idx][0]]
+            labels[idx] = cluster_label_map[nearest_cluster]
+
+    # 映射主聚类的所有点
+    for label in np.unique(labels):
+        if label in cluster_label_map:
+            labels[labels == label] = cluster_label_map[label]
+
+    return labels
 
 def classify_with_pca_and_knn(train_features, test_features, domain_label):
     # 数据归一化
@@ -86,7 +166,7 @@ def classify_with_pca_and_knn(train_features, test_features, domain_label):
     test_features_norm = scaler.transform(test_features)
 
     # 应用PCA进行降维
-    pca = PCA(n_components=128)
+    pca = PCA(n_components=256)
     train_features_reduced = pca.fit_transform(train_features_norm)
     test_features_reduced = pca.transform(test_features_norm)
     print('train_features_reduced shape:', train_features_reduced.shape)
@@ -107,8 +187,8 @@ def classify_with_pca_and_knn(train_features, test_features, domain_label):
     predicted_labels = np.array([np.bincount(vote).argmax() for vote in votes])  # 对每个测试样本，计算最频繁的类别
 
     acc = np.mean(predicted_labels == domain_label)
-
-    return predicted_labels, acc
+    cm = confusion_matrix(domain_label, predicted_labels)
+    return predicted_labels, acc, cm
 
 
 def run(args):
@@ -159,8 +239,9 @@ def run(args):
             print('train_features shape:', train_features.shape)
             print('test_features shape:', test_features.shape)
 
-        client.pred_domain_label, acc = classify_with_one_class_svm(train_features, test_features, client.domain_label)
+        client.pred_domain_label, acc, cm = classify_with_dbscan(train_features, test_features, client.domain_label)
         print('predicted_labels:', client.pred_domain_label)
+        print('confusion matrix:\n', cm)
         print('acc:', acc)
 
         client.tp_dataloader, client.tn_dataloader, client.fp_dataloader, client.fn_dataloader = \

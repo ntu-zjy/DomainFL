@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import OneClassSVM
+from sklearn.metrics import confusion_matrix
 
 import warnings
 warnings.simplefilter("ignore")
@@ -80,7 +81,9 @@ def run(args):
             client.pred_domain_label = max_entropy_classify(model, all_clients_test_dataloader, args)
             acc = np.sum(client.pred_domain_label == client.domain_label) / len(client.domain_label)
             print('accuracy:', np.sum(client.pred_domain_label == client.domain_label) / len(client.domain_label))
-
+            cm = confusion_matrix(client.domain_label, client.pred_domain_label)
+            print('confusion matrix:\n', cm)
+            
         client.tp_dataloader, client.tn_dataloader, client.fp_dataloader, client.fn_dataloader = \
             split_dataloader_by_labels(all_clients_test_dataloader, client.pred_domain_label, client.domain_label)
 
