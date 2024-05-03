@@ -14,7 +14,7 @@ from .json_utils import generate_json_config
 from .optimizer.fedprox import PerturbedGradientDescent
 
 class ClientProx(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
+    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
         self.id = id

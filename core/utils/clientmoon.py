@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_s
 from .json_utils import generate_json_config
 
 class ClientMOON(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
+    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
         self.id = id

@@ -4,7 +4,7 @@ import copy
 import time
 import torch
 import argparse
-from utils.get_data import data1, data2
+from utils.get_data import data1, data2, source
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
@@ -26,8 +26,8 @@ def task_arithmetic_merge(clientObjs, alpha=0.3):
     for client in clientObjs:
         for p1, p2 in zip(merged_model.base.adapter.parameters(), client.model.base.adapter.parameters()):
             p1.data = alpha * p2.data.clone() + p1.data.clone()
-            print('p1.data:', p1.data)
-            print('p2.data:', p2.data)
+            # print('p1.data:', p1.data)
+            # print('p2.data:', p2.data)
     for client in clientObjs:
         for pc, p in zip(client.model.base.adapter.parameters(), merged_model.base.adapter.parameters()):
             pc.data = p.data.clone()
@@ -50,14 +50,14 @@ def run(args):
         cd = build_subset(cd, args.subset_size)
         print(f'Subset Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
         cls_head = server.generate_cls_head(cd, data_name)
-        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name, load_local_adapter=True)
         clients.append(client)
         del cd
 
     # task arithmetic merge
-    clients = task_arithmetic_merge(clients, alpha=0.3)
+    clients = task_arithmetic_merge(clients, alpha=args.alpha)
 
-    print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
+    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
@@ -95,6 +95,7 @@ if __name__ == "__main__":
     parser.add_argument('-eval','--eval_interval', type=int, default=100, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
+    parser.add_argument('-a','--alpha', type=float, default=0.3, help='Alpha')
 
     args = parser.parse_args()
 

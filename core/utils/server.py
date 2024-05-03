@@ -24,6 +24,7 @@ class Server(torch.nn.Module):
         self.device = args.device
         self.pretrained_model.to(self.device)
         self.image_encoder = ImageEncoder(args, zeroshot).to(self.device)
+        self.criterion = torch.nn.CrossEntropyLoss()
 
     def generate_cls_head(self, dataObject, data_name):
         print(f"build data {data_name} classification head")
@@ -58,3 +59,23 @@ class Server(torch.nn.Module):
         classification_head = ClassificationHead(normalize=True, weights=zeroshot_weights)
 
         return classification_head
+
+    def generate_global_cls_head(self, cls_heads):
+        global_cls_head = copy.deepcopy(cls_heads[0])
+        for param in global_cls_head.parameters():
+            param.data.zero_()
+        for cls_head in cls_heads:
+            for global_param, param in zip(global_cls_head.parameters(), cls_head.parameters()):
+                global_param.data += param.data.clone()
+        # mean
+        for global_param in global_cls_head.parameters():
+            global_param.data /= len(cls_heads)
+        self.global_cls_head = global_cls_head
+        self.global_cls_head.to(self.device)
+
+    def freeze_except_global_adapter(self):
+        for name, params in self.image_encoder.named_parameters():
+            if 'global_adapter' not in name:
+                params.requires_grad = False
+        for params in self.global_cls_head.parameters():
+            params.requires_grad = False

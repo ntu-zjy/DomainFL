@@ -36,15 +36,10 @@ class ImageEncoder(torch.nn.Module):
         self.output_dim = self.model.visual.output_dim
         self.adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
 
-        self.adapter_init()
-
+        # self.global_proto_shifter = copy.deepcopy(nn.Linear(self.output_dim, self.output_dim, bias=False).to(args.device))
+        self.global_proto_shifter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
         self.global_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
         self.local_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
-
-    # init the adapter with gaussian distribution
-    def adapter_init(self):
-        for param in self.adapter.parameters():
-            nn.init.normal_(param, mean=0, std=0.02)
 
     def forward(self, images):
         image_features = self.model.encode_image(images)
@@ -52,6 +47,7 @@ class ImageEncoder(torch.nn.Module):
             return image_features
         else:
             return self.adapter(image_features) + image_features
+            # return self.global_proto_shifter(self.adapter(image_features) + image_features)
 
     def __call__(self, inputs):
         return self.forward(inputs)

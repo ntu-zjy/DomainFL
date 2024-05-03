@@ -95,7 +95,7 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedts/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/fedts_la/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -137,8 +137,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedts/', exist_ok=True)
-    with open(f'./results/fedts/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/fedts_la/', exist_ok=True)
+    with open(f'./results/fedts_la/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

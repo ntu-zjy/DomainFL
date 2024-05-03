@@ -11,9 +11,9 @@ import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
-from .optimizer.fedprox import PerturbedGradientDescent
+from collections import defaultdict
 
-class ClientDitto(nn.Module):
+class ClientProto(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
@@ -35,8 +35,11 @@ class ClientDitto(nn.Module):
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
 
-        self.mu = args.mu
-        self.plocal_epochs = args.plocal_epochs
+        self.protos = None
+        self.global_protos = None
+        self.loss_mse = nn.MSELoss()
+
+        self.lamda = args.lamda
 
         # for auto test data split
         self.domain_label = None
@@ -48,7 +51,6 @@ class ClientDitto(nn.Module):
         self.fp_dataloader = None
         self.fn_dataloader = None
 
-
         if test_split:
             self.load_local_and_global_adapter()
         elif load_local_adapter:
@@ -58,12 +60,9 @@ class ClientDitto(nn.Module):
         self.freeze_except_adapter() # freeze the image encoder and the head, only train the adapter
 
         self.model.to(self.device)
-        self.model_per = copy.deepcopy(self.model)
 
         self.params = [p for p in self.model.parameters() if p.requires_grad]
-        self.params_per = [p for p in self.model_per.parameters() if p.requires_grad]
         self.optimizer = torch.optim.AdamW(self.params, lr=self.lr)
-        self.optimizer_per = PerturbedGradientDescent(self.params_per, lr=self.lr, mu=self.mu)
         self.loss = torch.nn.CrossEntropyLoss()
         # warmup + cosine annealing lr scheduler on every epoch
         def lr_lambda(current_epoch):
@@ -174,36 +173,31 @@ class ClientDitto(nn.Module):
                 param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
         self.freeze_except_adapter()
 
-    def p_fine_tune(self, centralized=None):
-        self.model_per.train()
-        for epoch in range(self.plocal_epochs):
-            pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
-            for i, (inputs, labels) in pbar:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-                self.optimizer_per.zero_grad()
-                outputs = self.model_per(inputs)
-                loss = self.loss(outputs, labels)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.params_per, self.args.clip)
-                self.optimizer_per.step(self.params, self.device)
-                lr = self.optimizer_per.param_groups[0]['lr']
-
-                if centralized:
-                    pbar.set_description\
-                        (f'Centralized Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
-                else:
-                    pbar.set_description\
-                        (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
-
     def fine_tune(self, centralized=None):
+        protos = defaultdict(list)
         self.model.train()
         for epoch in range(self.local_epochs):
             pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
             for i, (inputs, labels) in pbar:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                rep = self.model.base.model.encode_image(inputs)
+                rep = rep + self.model.base.adapter(rep)
+                outputs = self.model.head(rep)
                 loss = self.loss(outputs, labels)
+
+                # if self.global_protos is not None:
+                #     proto_new = copy.deepcopy(rep.detach())
+                #     for i, yy in enumerate(labels):
+                #         y_c = yy.item()
+                #         if type(self.global_protos[y_c]) != type([]):
+                #             proto_new[i, :] = self.global_protos[y_c].data
+                #     loss += self.loss_mse(proto_new, rep) * self.lamda
+
+                for i, yy in enumerate(labels):
+                    y_c = yy.item()
+                    protos[y_c].append(rep[i, :].detach().data)
+
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
                 self.optimizer.step()
@@ -215,7 +209,13 @@ class ClientDitto(nn.Module):
                 else:
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
+
+            self.protos = agg_func(protos)
+
             self.scheduler.step()
+
+    def set_protos(self, global_protos):
+        self.global_protos = global_protos
 
     def whitebox_domain_adaptive_test(self, clients):
         # test on all clients
@@ -318,17 +318,17 @@ class ClientDitto(nn.Module):
         # print('adapter weight:', self.model.base.adapter.state_dict()['fc.2.weight'])
         # print('global_adapter weight:', self.model.base.global_adapter.state_dict()['fc.2.weight'])
 
-        self.model_per.eval()
+        self.model.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                image_features = self.model_per.base.model.encode_image(inputs)
-                global_adapter_features = self.model_per.base.local_adapter(image_features)
+                image_features = self.model.base.model.encode_image(inputs)
+                global_adapter_features = self.model.base.local_adapter(image_features)
                 global_adapter_features = image_features + global_adapter_features
-                outputs = self.model_per.head(global_adapter_features)
+                outputs = self.model.head(global_adapter_features)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -348,17 +348,17 @@ class ClientDitto(nn.Module):
         # use own test_dataloader if not provided
         test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
 
-        self.model_per.eval()
+        self.model.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                image_features = self.model_per.base.model.encode_image(inputs)
-                global_adapter_features = self.model_per.base.global_adapter(image_features)
+                image_features = self.model.base.model.encode_image(inputs)
+                global_adapter_features = self.model.base.global_adapter(image_features)
                 global_adapter_features += image_features
-                outputs = self.model_per.head(global_adapter_features)
+                outputs = self.model.head(global_adapter_features)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -378,14 +378,14 @@ class ClientDitto(nn.Module):
         # use own test_dataloader if not provided
         test_dataloader = self.test_dataloader if test_dataloader is None else test_dataloader
 
-        self.model_per.eval()
+        self.model.eval()
         predicted_list = []
         labels_list = []
         prob_list = []
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                outputs = self.model_per(inputs)
+                outputs = self.model(inputs)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -399,13 +399,14 @@ class ClientDitto(nn.Module):
         f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
         precision = 100 * precision_score(labels_list, predicted_list, average='macro')
         recall = 100 * recall_score(labels_list, predicted_list, average='macro')
-        return round(acc, 4), round(auc, 4), round(f1, 4), round(precision, 4), round(recall, 4)
+        return round(acc, 4)
+
 
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
         for client in clients:
-            acc, auc, f1, precision, recall = self.test(client.test_dataloader)
+            acc = self.test(client.test_dataloader)
             accs.append(acc)
         print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
         return accs
@@ -430,3 +431,18 @@ class ClientDitto(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
+def agg_func(protos):
+    """
+    Returns the average of the weights.
+    """
+
+    for [label, proto_list] in protos.items():
+        if len(proto_list) > 1:
+            proto = 0 * proto_list[0].data
+            for i in proto_list:
+                proto += i.data
+            protos[label] = proto / len(proto_list)
+        else:
+            protos[label] = proto_list[0]
+
+    return protos

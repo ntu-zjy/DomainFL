@@ -5,7 +5,7 @@ import time
 import torch
 import argparse
 from models.CLIP import *
-from utils.get_data import data1
+from utils.get_data import data1, source
 from utils.get_data import data2
 from utils.get_data import get_data
 from utils.data_utils import build_subset

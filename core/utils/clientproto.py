@@ -14,7 +14,7 @@ from .json_utils import generate_json_config
 from collections import defaultdict
 
 class ClientProto(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=True, test_split=False):
+    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
         self.id = id
@@ -183,17 +183,17 @@ class ClientProto(nn.Module):
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 self.optimizer.zero_grad()
                 rep = self.model.base.model.encode_image(inputs)
-                rep = rep + self.model.base.adapter(rep)
-                outputs = self.model.head(rep)
+                local_rep = rep + self.model.base.adapter(rep)
+                outputs = self.model.head(local_rep)
                 loss = self.loss(outputs, labels)
 
-                if self.global_protos is not None:
-                    proto_new = copy.deepcopy(rep.detach())
-                    for i, yy in enumerate(labels):
-                        y_c = yy.item()
-                        if type(self.global_protos[y_c]) != type([]):
-                            proto_new[i, :] = self.global_protos[y_c].data
-                    loss += self.loss_mse(proto_new, rep) * self.lamda
+                # if self.global_protos is not None:
+                #     proto_new = copy.deepcopy(rep.detach())
+                #     for i, yy in enumerate(labels):
+                #         y_c = yy.item()
+                #         if type(self.global_protos[y_c]) != type([]):
+                #             proto_new[i, :] = self.global_protos[y_c].data
+                #     loss += self.loss_mse(proto_new, rep) * self.lamda
 
                 for i, yy in enumerate(labels):
                     y_c = yy.item()

@@ -6,7 +6,7 @@ import torch
 import argparse
 from models.CLIP import *
 from utils.get_data import data1
-from utils.get_data import data2
+from utils.get_data import data2, source
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     parser.add_argument('-eval','--eval_interval', type=int, default=1, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
-    parser.add_argument('-mu', '--mu', type=float, default=0.001, help='Mu')
+    parser.add_argument('-mu', '--mu', type=float, default=0.01, help='Mu')
     parser.add_argument('-tau', '--tau', type=float, default=1, help='Tau')
 
     args = parser.parse_args()

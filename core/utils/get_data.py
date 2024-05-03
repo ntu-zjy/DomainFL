@@ -23,8 +23,8 @@ from data2.datasets_utils.quickdraw import Quickdraw
 from data2.datasets_utils.infograph import Infograph
 
 data2 = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph']
-source = ['Clipart', 'Painting', 'Real', 'Sketch', 'Infograph']
-target = ['Quickdraw']
+source = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw']
+target = ['Infograph']
 
 random.seed(1)
 np.random.seed(1)
