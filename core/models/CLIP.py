@@ -47,7 +47,6 @@ class ImageEncoder(torch.nn.Module):
             return image_features
         else:
             return self.adapter(image_features) + image_features
-            # return self.global_proto_shifter(self.adapter(image_features) + image_features)
 
     def __call__(self, inputs):
         return self.forward(inputs)

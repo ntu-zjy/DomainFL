@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
     parser.add_argument('-optim','--optimizer', type=str, default='AdamW', help='Optimizer name')
     parser.add_argument('-lr','--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('-clip','--clip', type=float, default=5, help='Gradient clip')
+    parser.add_argument('-clip','--clip', type=float, default=1, help='Gradient clip')
     parser.add_argument('-bs','--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('-warm_up','--warm_up', type=int, default=20, help='Warm up epochs')

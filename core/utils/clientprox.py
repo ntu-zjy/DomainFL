@@ -14,7 +14,7 @@ from .json_utils import generate_json_config
 from .optimizer.fedprox import PerturbedGradientDescent
 
 class ClientProx(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
+    def __init__(self, args, id, train_dataset, test_dataset, val_dataset, train_dataloader, test_dataloader, val_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
         self.id = id
@@ -30,6 +30,8 @@ class ClientProx(nn.Module):
         self.test_dataset = test_dataset
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
+        self.val_dataset = val_dataset
+        self.val_dataloader = val_dataloader
         self.classnames = classnames
         self.image_encoder = copy.deepcopy(image_encoder)
         self.cls_head = copy.deepcopy(cls_head)
@@ -170,6 +172,16 @@ class ClientProx(nn.Module):
             if name == 'base.local_adapter.fc.2.weight':
                 param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
         self.freeze_except_adapter()
+
+    def cal_val_loss(self):
+        val_loss = 0
+        self.model.eval()
+        with torch.no_grad():
+            for inputs, labels in self.val_dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                output = self.model(inputs)
+                val_loss += self.loss(output, labels).item()
+        return val_loss
 
     def fine_tune(self, centralized=None):
         self.model.train()

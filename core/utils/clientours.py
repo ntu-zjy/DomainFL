@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import math
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 from .json_utils import generate_json_config
-from torch.autograd import Variable
+from collections import defaultdict
 
 class Client(nn.Module):
     def __init__(self, args, id, train_dataset, test_dataset, val_dataset, train_dataloader, test_dataloader, val_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
@@ -37,10 +37,18 @@ class Client(nn.Module):
         self.cls_head = copy.deepcopy(cls_head)
         self.model = self.construct_model()
 
+        self.protos = None
+        self.global_protos = None
+        self.mse_loss = nn.MSELoss()
+        self.kd_loss = nn.KLDivLoss()
+        self.rw = args.regularization_weight
+        self.kdw = args.kd_loss_weight
+
         # for auto test data split
         self.domain_label = None
         self.pred_domain_label = None
 
+        self.reference = self.generate_reference()
         self.tp_dataloader = None
         self.tn_dataloader = None
         self.fp_dataloader = None
@@ -71,28 +79,17 @@ class Client(nn.Module):
         self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda)
         self.start_phase = True
 
-        self.klw = args.kl_weight
-        self.momentum = args.momentum
-        self.global_mean = None
-
-        for x, y in self.train_dataloader:
-            x = x.to(self.device)
-            y = y.to(self.device)
-            with torch.no_grad():
-                rep = self.model.base(x).detach()
-            break
-        self.running_mean = torch.zeros_like(rep[0])
-        self.num_batches_tracked = torch.tensor(0, dtype=torch.long, device=self.device)
-
-        self.client_mean = nn.Parameter(Variable(torch.zeros_like(rep[0])))
-        self.opt_client_mean = torch.optim.SGD([self.client_mean], lr=self.lr)
-
-    def reset_running_stats(self):
-        self.running_mean.zero_()
-        self.num_batches_tracked.zero_()
-
-    def detach_running(self):
-        self.running_mean.detach_()
+    def generate_reference(self, batch_num=20):
+        with torch.no_grad():
+            references = []
+            for i, (inputs, _) in enumerate(self.train_dataloader):
+                if i < batch_num:
+                    inputs = inputs.to(self.device)
+                    image_features = self.model.base.model.encode_image(inputs)
+                    reference = image_features + self.model.base.local_adapter(image_features)
+                    references.append(reference)
+            references = torch.cat(references, dim=0)
+            return references
 
     def construct_model(self):
         model = ImageClassifier(self.image_encoder, self.cls_head)
@@ -134,52 +131,6 @@ class Client(nn.Module):
             else:
                 param.requires_grad_(True)
 
-    def local_adaptation(self, adapt_trainloader, threshold=0.05):
-        # only train the adapter weight to find the balance between the global adapter and the local adapter
-        for param in self.model.parameters():
-            param.requires_grad_(False)
-        output_dim =self.model.base.output_dim
-        global_adapter_weights = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)) # global adapter weights
-        Identical_matrix = torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)
-        params = [global_adapter_weights]
-        # print('params:', params)
-        optimizer = torch.optim.AdamW(params, lr=self.lr)
-
-        while True:
-            losses = []
-            for i, (inputs, labels) in enumerate(adapt_trainloader):
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
-                optimizer.zero_grad()
-                image_features = self.model.base.model.encode_image(inputs)
-                global_adapter_features = self.model.base.adapter(image_features)
-                local_adapter_features = self.model.base.local_adapter(image_features)
-                local_shifted_adapter_features = local_adapter_features @ (Identical_matrix - global_adapter_weights)
-                global_shifted_adapter_features = global_adapter_features @ global_adapter_weights
-                combined_features = local_shifted_adapter_features + global_shifted_adapter_features + image_features
-
-                outputs = self.model.head(combined_features)
-                loss = self.loss(outputs, labels)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(params, self.args.clip)
-                optimizer.step()
-
-                losses.append(loss.item())
-
-            # we train the adapter weight in the first round that strictly follow the threshold
-            # after that, we only train the adapter weight in one epoch
-            if np.std(losses) < threshold or self.start_phase == False:
-                self.start_phase = False
-                print(f'Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses)}')
-                break
-        print('params:', params)
-        # merge the local adapter and the global adapter with glocal_adapter_weight
-        local_adapter = self.model.base.local_adapter.state_dict()['fc.2.weight']
-        global_adapter = self.model.base.adapter.state_dict()['fc.2.weight']
-        for name, param in self.model.named_parameters():
-            if name == 'base.local_adapter.fc.2.weight':
-                param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
-        self.freeze_except_adapter()
-
     def cal_val_loss(self):
         val_loss = 0
         self.model.eval()
@@ -190,41 +141,39 @@ class Client(nn.Module):
                 val_loss += self.loss(output, labels).item()
         return val_loss
 
-    def fine_tune(self, centralized=None):
+    def fine_tune(self, centralized=None, global_round=None):
+        protos = defaultdict(list)
         self.model.train()
-        self.reset_running_stats()
         for epoch in range(self.local_epochs):
             pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
+
             for i, (inputs, labels) in pbar:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                self.opt_client_mean.zero_grad()
                 self.optimizer.zero_grad()
                 rep = self.model.base.model.encode_image(inputs)
-                rep = rep + self.model.base.adapter(rep)
-                running_mean = torch.mean(rep, dim=0)
+                local_rep = rep + self.model.base.adapter(rep)
 
-                if self.num_batches_tracked is not None:
-                    self.num_batches_tracked.add_(1)
+                outputs = self.model.head(local_rep)
+                loss = self.loss(outputs, labels)
+                if global_round != 0:
+                    global_rep = rep + self.model.base.global_adapter(rep)
+                    global_outputs = self.model.head(global_rep)
 
-                self.running_mean = (1-self.momentum) * self.running_mean + self.momentum * running_mean
+                    mse_loss = self.mse_loss(rep, global_rep)
+                    source = F.log_softmax(outputs, dim=1)
+                    target = F.softmax(global_outputs, dim=1)
+                    kd_loss = self.kd_loss(source, target)
 
-                if self.global_mean is not None:
-                    reg_loss = torch.mean(0.5 * (self.running_mean - self.global_mean)**2)
-                    output = self.model.head(rep + self.client_mean)
-                    loss = self.loss(output, labels)
-                    loss = loss + reg_loss * self.klw
-                else:
-                    output = self.model.head(rep)
-                    loss = self.loss(output, labels)
-                # ====== end
+                    loss = loss + self.rw * mse_loss + self.kdw * kd_loss
+                    # print('cross loss:', loss.item(), 'mse loss:', mse_loss.item(), 'kd loss:', kd_loss.item())
+
+                for i, yy in enumerate(labels):
+                    y_c = yy.item()
+                    protos[y_c].append(rep[i, :].detach().data)
 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.params, self.args.clip)
-                torch.nn.utils.clip_grad_norm_([self.client_mean], self.args.clip)
                 self.optimizer.step()
-                self.opt_client_mean.step()
-                self.detach_running()
-
                 lr = self.optimizer.param_groups[0]['lr']
 
                 if centralized:
@@ -233,7 +182,13 @@ class Client(nn.Module):
                 else:
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
+
+            self.protos = agg_func(protos)
+
             self.scheduler.step()
+
+    def set_protos(self, global_protos):
+        self.global_protos = global_protos
 
     def test(self, test_dataloader=None):
         # use own test_dataloader if not provided
@@ -246,9 +201,7 @@ class Client(nn.Module):
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                rep = self.model.base.model.encode_image(inputs)
-                rep = rep + self.model.base.adapter(rep)
-                outputs = self.model.head(rep + self.client_mean)
+                outputs = self.model(inputs)
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -262,13 +215,14 @@ class Client(nn.Module):
         f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
         precision = 100 * precision_score(labels_list, predicted_list, average='macro')
         recall = 100 * recall_score(labels_list, predicted_list, average='macro')
-        return round(acc, 4), round(auc, 4), round(f1, 4), round(precision, 4), round(recall, 4)
+        return round(acc, 4)
+
 
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
         for client in clients:
-            acc, auc, f1, precision, recall = self.test(client.test_dataloader)
+            acc = self.test(client.test_dataloader)
             accs.append(acc)
         print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
         return accs
@@ -293,3 +247,18 @@ class Client(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
+def agg_func(protos):
+    """
+    Returns the average of the weights.
+    """
+
+    for [label, proto_list] in protos.items():
+        if len(proto_list) > 1:
+            proto = 0 * proto_list[0].data
+            for i in proto_list:
+                proto += i.data
+            protos[label] = proto / len(proto_list)
+        else:
+            protos[label] = proto_list[0]
+
+    return protos

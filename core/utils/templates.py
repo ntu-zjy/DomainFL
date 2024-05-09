@@ -328,6 +328,43 @@ quickdraw_template = [
     lambda c: f'a rough outline of a {c}.',
 ]
 
+officeclipart_template = [
+    lambda c: f'a clip art of a {c}.',
+    lambda c: f'a cartoonish {c}.',
+    lambda c: f'a stylized image of a {c}.',
+    lambda c: f'a graphic representation of a {c}.',
+    lambda c: f'a colorful, simple portrayal of a {c}.',
+    lambda c: f'an illustration of a {c}.',
+]
+
+officeart_template = [
+    lambda c: f'a painting of a {c}.',
+    lambda c: f'a classic portrayal of a {c}.',
+    lambda c: f'an artistic representation of a {c}.',
+    lambda c: f'a detailed artwork of a {c}.',
+    lambda c: f'an impressionist painting of a {c}.',
+    lambda c: f'a canvas featuring a {c}.',
+]
+
+officeproduct_template = [
+    lambda c: f'an infographic of a {c}.',
+    lambda c: f'an informative illustration of a {c}.',
+    lambda c: f'a data-driven depiction of a {c}.',
+    lambda c: f'a visual statistic about a {c}.',
+    lambda c: f'a diagram featuring a {c}.',
+    lambda c: f'an illustrated fact about a {c}.',
+]
+
+officereal_template = [
+    lambda c: f'a real-life photo of a {c}.',
+    lambda c: f'an actual image of a {c}.',
+    lambda c: f'a high-resolution photograph of a {c}.',
+    lambda c: f'a true-to-life depiction of a {c}.',
+    lambda c: f'a photorealistic rendering of a {c}.',
+    lambda c: f'a detailed visual of a {c}.',
+]
+
+
 dataset_to_template = {
     'Cars': cars_template,
     'CIFAR10': cifar10_template,
@@ -352,6 +389,10 @@ dataset_to_template = {
     'Real': real_template,
     'Sketch': sketch_template,
     'Infograph': infograph_template,
+    'OfficeClipart': officeclipart_template,
+    'OfficeArt': officeart_template,
+    'OfficeProduct': officeproduct_template,
+    'OfficeReal': officereal_template,
 }
 
 

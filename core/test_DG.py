@@ -40,7 +40,10 @@ def run(args):
         cd = build_subset(cd, args.subset_size)
         cls_head = server.generate_cls_head(cd, data_name)
         # by setting test_split=True, we can load the pretrained weight of the global adapter and local adapter
-        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name, test_split=True)
+        if args.algorithm == 'local':
+            client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name, load_local_adapter=True)
+        else:
+            client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.train_loader, cd.test_loader, cd.classnames, init_image_encoder, cls_head, data_name, test_split=True)
         clients.append(client)
         del cd
     # print('last layer of adapter in clients[0].model:', clients[0].model.base.adapter.state_dict()['fc.2.weight'])
@@ -51,12 +54,13 @@ def run(args):
 
     # test clients
     start_time = time.time()
-
+    accs = []
     for id, client in enumerate(clients):
         acc = client.test_on_target(target_data.test_loader)
-    # with open(f'./results/{args.algorithm}_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-    #     json.dump({'round':0, 'own_acc': client_own_domain_acc, 'other_acc': client_other_domain_acc, 'domain_acc': acc}, f)
-    #     f.write('\n')
+        accs.append(acc)
+    with open(f'./results/{args.algorithm}_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        json.dump({'round':0, 'DG_acc': accs}, f)
+        f.write('\n')
 
     test_time = time.time() - start_time
     print(f'total test time cost: {test_time:.2f}s')
@@ -90,9 +94,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    # os.makedirs(f'./results/{args.algorithm}_split/', exist_ok=True)
-    # with open(f'./results/{args.algorithm}_split/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
-    #     json.dump(generate_json_config(args), f)
-    #     f.write('\n')
+    os.makedirs(f'./results/{args.algorithm}_DG/', exist_ok=True)
+    with open(f'./results/{args.algorithm}_DG/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+        json.dump(generate_json_config(args), f)
+        f.write('\n')
 
     run(args)

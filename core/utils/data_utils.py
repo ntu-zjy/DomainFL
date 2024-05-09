@@ -1,26 +1,13 @@
 import copy
 from torch.utils.data import DataLoader, Subset, ConcatDataset
 import numpy as np
-
-# def build_subset(dataObject, num_classes, batch_size):
-#     # Ensure num_classes is not greater than available classes
-#     num_classes = min(num_classes, len(dataObject.train_dataset.class_to_idx))
-
-#     # Collect indices of data samples belonging to the specified number of classes
-#     selected_indices = [i for i, (_, label) in enumerate(dataObject.train_dataset) if label < num_classes]
-
-#     # Create subset using these indices
-#     subset = Subset(dataObject.train_dataset, selected_indices)
-
-#     # Create a DataLoader for the subset
-#     subset_loader = DataLoader(subset, batch_size=batch_size, shuffle=True)
-
-#     return subset_loader
+from sklearn.model_selection import StratifiedShuffleSplit
 
 class CustomSubset(Subset):
-    def __init__(self, dataset, indices, class_to_idx):
+    def __init__(self, dataset, indices, class_to_idx, image_labels=None):
         super().__init__(dataset, indices)
         self.class_to_idx = class_to_idx
+        self.image_labels = image_labels
 
 class CustomConcatDataset(ConcatDataset):
     def __init__(self, datasets, class_to_idx):
@@ -40,15 +27,36 @@ def build_subset(dataObject, num_classes):
     train_indices = np.where(train_labels < num_classes)[0]
     test_indices = np.where(test_labels < num_classes)[0]
 
+    train_labels = train_labels[train_indices]
+    test_labels = test_labels[test_indices]
+
     # Use CustomSubset to create new subsets
-    dataObject.train_dataset = CustomSubset(dataObject.train_dataset, train_indices, new_class_to_idx)
-    dataObject.test_dataset = CustomSubset(dataObject.test_dataset, test_indices, new_class_to_idx)
+    dataObject.train_dataset = CustomSubset(dataObject.train_dataset, train_indices, new_class_to_idx, train_labels)
+    dataObject.test_dataset = CustomSubset(dataObject.test_dataset, test_indices, new_class_to_idx, test_labels)
 
     # Update DataLoader and classnames
     dataObject.train_loader = DataLoader(dataObject.train_dataset, shuffle=True, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
     dataObject.test_loader = DataLoader(dataObject.test_dataset, batch_size=dataObject.test_loader.batch_size, num_workers=dataObject.test_loader.num_workers, pin_memory=True)
     dataObject.update_classnames()
 
+    return dataObject
+
+def split_train_and_val(dataObject, val_percent=0.2):
+    targets = dataObject.train_dataset.image_labels
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=val_percent, random_state=1)
+
+    for train_index, val_index in sss.split(list(range(len(targets))), targets):
+        pass
+
+    class_to_idx = dataObject.train_dataset.class_to_idx
+    train_dataset = copy.deepcopy(dataObject.train_dataset)
+    # Use CustomSubset to create new subsets
+    dataObject.train_dataset = CustomSubset(train_dataset, train_index, class_to_idx)
+    dataObject.val_dataset = CustomSubset(train_dataset, val_index, class_to_idx)
+
+    # Update DataLoader and classnames
+    dataObject.train_loader = DataLoader(dataObject.train_dataset, shuffle=True, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
+    dataObject.val_loader = DataLoader(dataObject.val_dataset, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
     return dataObject
 
 def local_adaptation_subset_trainloader(train_dataset, train_loader, num_percent):
@@ -75,6 +83,10 @@ def concat_datasets(dataObjects):
     test_datasets = [dataObject.test_dataset for dataObject in dataObjects]
     test_dataset = CustomConcatDataset(test_datasets, class_to_idx)
 
+    # Concatenate val datasets
+    val_datasets = [dataObject.val_dataset for dataObject in dataObjects]
+    val_dataset = CustomConcatDataset(val_datasets, class_to_idx)
+
     # Create a new DataLoader for the concatenated train dataset
     batch_size = dataObjects[0].train_loader.batch_size
     num_workers = dataObjects[0].train_loader.num_workers
@@ -85,6 +97,10 @@ def concat_datasets(dataObjects):
     num_workers = dataObjects[0].test_loader.num_workers
     test_loader = DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
 
+    # Create a new DataLoader for the concatenated val dataset
+    batch_size = dataObjects[0].val_loader.batch_size
+    num_workers = dataObjects[0].val_loader.num_workers
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
 
     # Create a new DataObject with the concatenated datasets
     dataObject = copy.deepcopy(dataObjects[0])
@@ -92,6 +108,8 @@ def concat_datasets(dataObjects):
     dataObject.test_dataset = test_dataset
     dataObject.train_loader = train_loader
     dataObject.test_loader = test_loader
+    dataObject.val_dataset = val_dataset
+    dataObject.val_loader = val_loader
     dataObject.update_classnames()
 
     return dataObject

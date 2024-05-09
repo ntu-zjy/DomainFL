@@ -14,7 +14,7 @@ from .json_utils import generate_json_config
 from collections import defaultdict
 
 class ClientProto(nn.Module):
-    def __init__(self, args, id, train_dataset, test_dataset, train_dataloader, test_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
+    def __init__(self, args, id, train_dataset, test_dataset, val_dataset, train_dataloader, test_dataloader, val_dataloader, classnames, image_encoder, cls_head, data_name, load_local_adapter=False, test_split=False):
         super().__init__()
         self.args = args
         self.id = id
@@ -30,6 +30,8 @@ class ClientProto(nn.Module):
         self.test_dataset = test_dataset
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
+        self.val_dataset = val_dataset
+        self.val_dataloader = val_dataloader
         self.classnames = classnames
         self.image_encoder = copy.deepcopy(image_encoder)
         self.cls_head = copy.deepcopy(cls_head)
@@ -128,51 +130,15 @@ class ClientProto(nn.Module):
             else:
                 param.requires_grad_(True)
 
-    def local_adaptation(self, adapt_trainloader, threshold=0.05):
-        # only train the adapter weight to find the balance between the global adapter and the local adapter
-        for param in self.model.parameters():
-            param.requires_grad_(False)
-        output_dim =self.model.base.output_dim
-        global_adapter_weights = nn.Parameter(torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)) # global adapter weights
-        Identical_matrix = torch.eye(n=output_dim, dtype=torch.float32).to(self.args.device)
-        params = [global_adapter_weights]
-        # print('params:', params)
-        optimizer = torch.optim.AdamW(params, lr=self.lr)
-
-        while True:
-            losses = []
-            for i, (inputs, labels) in enumerate(adapt_trainloader):
+    def cal_val_loss(self):
+        val_loss = 0
+        self.model.eval()
+        with torch.no_grad():
+            for inputs, labels in self.val_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                optimizer.zero_grad()
-                image_features = self.model.base.model.encode_image(inputs)
-                global_adapter_features = self.model.base.adapter(image_features)
-                local_adapter_features = self.model.base.local_adapter(image_features)
-                local_shifted_adapter_features = local_adapter_features @ (Identical_matrix - global_adapter_weights)
-                global_shifted_adapter_features = global_adapter_features @ global_adapter_weights
-                combined_features = local_shifted_adapter_features + global_shifted_adapter_features + image_features
-
-                outputs = self.model.head(combined_features)
-                loss = self.loss(outputs, labels)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(params, self.args.clip)
-                optimizer.step()
-
-                losses.append(loss.item())
-
-            # we train the adapter weight in the first round that strictly follow the threshold
-            # after that, we only train the adapter weight in one epoch
-            if np.std(losses) < threshold or self.start_phase == False:
-                self.start_phase = False
-                print(f'Client {self.id} [{self.data_name}] local adaptation loss std: {np.std(losses)}')
-                break
-        print('params:', params)
-        # merge the local adapter and the global adapter with glocal_adapter_weight
-        local_adapter = self.model.base.local_adapter.state_dict()['fc.2.weight']
-        global_adapter = self.model.base.adapter.state_dict()['fc.2.weight']
-        for name, param in self.model.named_parameters():
-            if name == 'base.local_adapter.fc.2.weight':
-                param.data = (Identical_matrix - global_adapter_weights) @ local_adapter.data.clone() +  global_adapter_weights @ global_adapter.data.clone()
-        self.freeze_except_adapter()
+                output = self.model(inputs)
+                val_loss += self.loss(output, labels).item()
+        return val_loss
 
     def fine_tune(self, centralized=None):
         protos = defaultdict(list)
@@ -396,12 +362,17 @@ class ClientProto(nn.Module):
                     predicted = torch.argmin(outputs, dim=1)
                     predicted_list.extend(predicted.cpu().numpy())
                     labels_list.extend(labels.cpu().numpy())
+        else:
+            with torch.no_grad():
+                for inputs, labels in test_dataloader:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    outputs = self.model(inputs)
+                    prob = F.softmax(outputs, 1)
+                    _, predicted = torch.max(prob, 1)
+                    predicted_list.extend(predicted.cpu().numpy())
+                    labels_list.extend(labels.cpu().numpy())
 
-            acc = 100 * accuracy_score(labels_list, predicted_list)
-            # auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
-            # f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
-            # precision = 100 * precision_score(labels_list, predicted_list, average='macro')
-            # recall = 100 * recall_score(labels_list, predicted_list, average='macro')
+        acc = 100 * accuracy_score(labels_list, predicted_list)
         return round(acc, 4)
 
     def test_on_all_clients(self, clients):
