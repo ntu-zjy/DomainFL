@@ -19,7 +19,7 @@ class OfficeArt:
         labels = self.dataset.img_labels['label'].tolist()
 
         # Configure StratifiedShuffleSplit for stratified sampling, with a 70:30 train:test split
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=0)
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.5, random_state=0)
 
         # Use StratifiedShuffleSplit to get indices for train and test sets
         train_idx, test_idx = next(sss.split(X=[0]*len(labels), y=labels))

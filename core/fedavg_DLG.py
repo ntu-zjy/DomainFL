@@ -9,13 +9,52 @@ from utils.get_data import data, office
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
-from utils.clientprox import ClientProx
+from utils.client import Client
 from utils.json_utils import generate_json_config
+from utils.dlg import DLG
 import warnings
 warnings.simplefilter("ignore")
 
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
+
+def call_dlg(args, global_adapter, clients):
+    cnt = 0
+    psnr_val = 0
+    uploaded_models = [c.model for c in clients]
+    for cid, client_model in enumerate(uploaded_models):
+        client_model.eval()
+        origin_grad = []
+        for gp, pp in zip(global_adapter.parameters(), client_model.base.adapter.parameters()):
+            origin_grad.append(gp.data - pp.data)
+
+        target_inputs = []
+        trainloader = clients[cid].train_dataloader
+        with torch.no_grad():
+            for i, (x, y) in enumerate(trainloader):
+                if i >= 2:
+                    break
+
+                if type(x) == type([]):
+                    x[0] = x[0].to(args.device)
+                else:
+                    x = x.to(args.device)
+                y = y.to(args.device)
+                output = client_model(x)
+                target_inputs.append((x, output))
+
+        d = DLG(client_model, origin_grad, target_inputs)
+        if d is not None:
+            psnr_val += d
+            cnt += 1
+
+        # items.append((client_model, origin_grad, target_inputs))
+
+    if cnt > 0:
+        print('PSNR value is {:.2f} dB'.format(psnr_val / cnt))
+    else:
+        print('PSNR error')
+
 
 def calculate_fedavg_weights(clients):
     total_train_num = 0
@@ -25,11 +64,9 @@ def calculate_fedavg_weights(clients):
         total_train_num += train_num
         num_list.append(train_num)
     weights = [num/total_train_num for num in num_list]
-    # return weights
-    # weights = [1/len(clients) for c in clients]
     return weights
 
-def fedavg(weights, clientObjs, server):
+def fedavg(weights, clientObjs, server, args):
     print("FedAvg... with weights: ", weights)
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
@@ -46,12 +83,13 @@ def fedavg(weights, clientObjs, server):
     # set the global adapter to the server
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
+    call_dlg(args, server.image_encoder.global_adapter, clientObjs)
+
     # send the global adapter back to the clients
     # param will be covered as global param
     for id in range(len(clientObjs)):
-        for param, global_param, global_param_temp in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters(), clientObjs[id].model.base.global_adapter.parameters()):
+        for param, global_param in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters()):
             param.data = global_param.data.clone()
-            global_param_temp.data = global_param.data.clone()
 
     return clientObjs, server
 
@@ -59,6 +97,7 @@ def send_global_head(global_cls_head, clientObjs):
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
     return clientObjs
+
 
 def run(args):
     # initialize server
@@ -77,7 +116,7 @@ def run(args):
         cd = build_subset(cd, args.subset_size) if args.dataset == 'data' else cd
         cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
-        client = ClientProx(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
         cls_heads.append(cls_head)
         del cd
@@ -86,8 +125,6 @@ def run(args):
     server.generate_global_cls_head(cls_heads)
     clients = send_global_head(server.global_cls_head, clients)
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
@@ -107,38 +144,33 @@ def run(args):
         if val_loss < best_loss:
             best_loss = val_loss
             counter = 0
-            print("save finetuned local models")
-            for client in clients:
-                client.save_adapter(args, algo='fedprox')
+            # print("save finetuned local models")
+            # for client in clients:
+            #     client.save_adapter(args, algo='fedavg')
         else:
             counter += 1
             if counter >= patience:
                 print(f'Early stopping at round {r}')
                 early_stop = True
 
+
         print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
 
-        # after fine tuning clients, we need to aggregate the adapters
-        weights = calculate_fedavg_weights(clients)
-        # fedavg algorithm
-        clients, server = fedavg(weights, clients, server)
+        # start_time = time.time()
+        # if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
+        #     client_acc = []
+        #     for id, client in enumerate(clients):
+        #         accs = client.test_on_all_clients(clients)
+        #         client_acc.append(accs)
 
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
+        #     # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        #     #     json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        #     #     f.write('\n')
 
-            with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                f.write('\n')
-
-            if early_stop:
-                break
-
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
+        #     if early_stop:
+        #         break
+        # test_time = time.time() - start_time
+        # print(f'Round {r} test time cost: {test_time:.2f}s')
 
         start_time = time.time()
         # fine tune clients
@@ -147,7 +179,12 @@ def run(args):
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
-        total_test_time += test_time
+        # after fine tuning clients, we need to aggregate the adapters
+        weights = calculate_fedavg_weights(clients)
+        # fedavg algorithm
+        clients, server = fedavg(weights, clients, server, args)
+
+        # total_test_time += test_time
         total_train_time += train_time
 
     total_time_cost = total_test_time + total_train_time
@@ -172,8 +209,6 @@ if __name__ == "__main__":
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
 
-    parser.add_argument('-mu','--mu', type=float, default=5, help='Mu for fedprox')
-
     args = parser.parse_args()
 
     if args.device == 'cuda':
@@ -181,9 +216,9 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedprox/', exist_ok=True)
-    with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
-        json.dump(generate_json_config(args), f)
-        f.write('\n')
+    # os.makedirs(f'./results/fedavg/', exist_ok=True)
+    # with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    #     json.dump(generate_json_config(args), f)
+    #     f.write('\n')
 
     run(args)

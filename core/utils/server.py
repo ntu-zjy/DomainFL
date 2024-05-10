@@ -10,7 +10,8 @@ from models.CLIP import ClassificationHead, Adapter, ImageEncoder
 d = {'RN50':'openai',
     'ViT-B-32': 'laion2b_s34b_b79k',
     'ViT-B-16': 'laion2b_s34b_b88k',
-    'ViT-L-14': 'laion2b_s32b_b82k'}
+    'ViT-L-14': 'laion2b_s32b_b82k',
+    'convnext_base_w': 'laion2b_s13b_b82k'}
 
 class Server(torch.nn.Module):
     def __init__(self, args, zeroshot=False):

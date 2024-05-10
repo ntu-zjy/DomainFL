@@ -32,8 +32,9 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     # generate batched data
     protos = torch.stack(protos)
     labels = torch.tensor(labels, dtype=torch.long)
+    # print('protos:', protos.shape)
     protos = protos.view(-1, batchsize, protos.shape[-1])
-    print('protos:', protos.shape)
+    # print('protos:', protos.shape)
     labels = labels.view(-1, batchsize)
     protos = protos.to(torch.float32)
     # shuffle the training data
@@ -62,7 +63,7 @@ def send_global_head(global_cls_head, clientObjs):
         client.model.head.load_state_dict(global_cls_head.state_dict())
     return clientObjs
 
-def server_adative_training(training_data, server, threshold=0.001, num_losses=10):
+def server_adative_training(training_data, server, threshold=0.001, num_losses=20):
     losses = []
     server.image_encoder.train()
     server.global_cls_head.train()
@@ -123,8 +124,7 @@ def calculate_fedts_weights(clients):
 
 def proto_initialization(clientObjs, server):
     uploaded_protos = receive_protos(clientObjs)
-    print("uploaded_protos:",uploaded_protos)
-    # global_protos = proto_aggregation(uploaded_protos)
+    # global_protos = proto_aggregation(uploaded_protos) # do not aggregate the protos !!!
     training_data = generate_protos_training_data(uploaded_protos)
     global_adapter = server_adative_training(training_data, server)
     clientObjs = send_adaptive_global_adapter(global_adapter, clientObjs)
@@ -203,14 +203,15 @@ def run(args):
     counter = 0
     early_stop = True
     for r in range(args.global_rounds):
-
-        start_time = time.time()
         # fine tune clients
         for id in range(len(clients)):
             clients[id].fine_tune(global_round=r)
-        train_time = time.time() - start_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
+
+        start_time = time.time()
         clients, server = proto_initialization(clients, server)
+        train_time = time.time() - start_time
+        total_train_time += train_time
+        print(f'Round {r} train time cost: {train_time:.2f}s')
 
         print(f'==================== Round {r} ====================')
         # cal val loss
@@ -239,6 +240,9 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
+            test_time = time.time() - start_time
+            print(f'Round {r} test time cost: {test_time:.2f}s')
+            total_test_time += test_time
             with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
@@ -246,11 +250,7 @@ def run(args):
             if early_stop:
                 break
 
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
 
-        total_test_time += test_time
-        total_train_time += train_time
 
     total_time_cost = total_test_time + total_train_time
     print(f'Total time cost: {total_time_cost:.2f}s')

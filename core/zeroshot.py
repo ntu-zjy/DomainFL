@@ -4,7 +4,7 @@ import copy
 import time
 import torch
 import argparse
-from utils.get_data import data
+from utils.get_data import data, office
 from utils.get_data import get_data
 from utils.data_utils import build_subset
 from utils.server import Server
@@ -32,7 +32,7 @@ def run(args):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
         print(f'Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
-        cd = build_subset(cd, args.subset_size)
+        cd = build_subset(cd, args.subset_size) if args.dataset == 'data' else cd
         print(f'Subset Client {id} [{data_name}] has {len(cd.train_dataset)} samples')
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, None, cd.train_loader, cd.test_loader, None, cd.classnames, init_image_encoder, cls_head, data_name)
