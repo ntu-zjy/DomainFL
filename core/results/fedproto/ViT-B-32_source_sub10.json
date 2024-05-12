@@ -1,2 +1,0 @@
-{"base_model": "CLIP", "dataset": "source", "subset_size": 10, "image_encoder_name": "ViT-B-32", "optimizer": "AdamW", "batch_size": 128, "learning_rate": 0.001, "global_rounds": 50, "local_epochs": 1, "warm_up": 5, "seed": 1}
-{"round": 49, "acc": [[97.4026, 90.4046, 99.2813, 96.6038, 49.0], [96.1039, 94.4509, 99.2813, 95.283, 60.1333], [96.1039, 89.711, 99.692, 97.1698, 48.1333], [96.4286, 90.8671, 99.4867, 98.4906, 53.2667], [91.8831, 86.7052, 95.6879, 90.9434, 90.4]], "total_test_time": 0.0002105236053466797, "total_train_time": 1001.3291387557983}

@@ -8,8 +8,8 @@ from models.CLIP import *
 from utils.get_data import data, office
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
-from utils.server import Server
-from utils.client import Client
+from utils.server_DLG import Server
+from utils.client_DLG import Client
 from utils.json_utils import generate_json_config
 from utils.dlg import DLG
 import warnings
@@ -18,14 +18,14 @@ warnings.simplefilter("ignore")
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
-def call_dlg(args, global_adapter, clients):
+def call_dlg(args, global_base, clients):
     cnt = 0
     psnr_val = 0
     uploaded_models = [c.model for c in clients]
     for cid, client_model in enumerate(uploaded_models):
         client_model.eval()
         origin_grad = []
-        for gp, pp in zip(global_adapter.parameters(), client_model.base.adapter.parameters()):
+        for gp, pp in zip(global_base.parameters(), client_model.base.parameters()):
             origin_grad.append(gp.data - pp.data)
 
         target_inputs = []
@@ -69,26 +69,26 @@ def calculate_fedavg_weights(clients):
 def fedavg(weights, clientObjs, server, args):
     print("FedAvg... with weights: ", weights)
     # server receive the adapters from clients
-    adapters = [c.model.base.adapter for c in clientObjs]
+    bases = [c.model.base for c in clientObjs]
 
     # fedavg aggregation
-    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
-    for param in server_global_adapter.parameters():
+    server_global_base = copy.deepcopy(server.image_encoder)
+    for param in server_global_base.parameters():
         param.data.zero_()
 
-    for adapter in adapters:
-        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+    for b in bases:
+        for w, global_param, param in zip(weights, server_global_base.parameters(), b.parameters()):
             global_param.data += w * param.data.clone()
 
     # set the global adapter to the server
-    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
+    server.image_encoder.load_state_dict(server_global_base.state_dict())
 
-    call_dlg(args, server.image_encoder.global_adapter, clientObjs)
+    call_dlg(args, server.image_encoder, clientObjs)
 
     # send the global adapter back to the clients
     # param will be covered as global param
     for id in range(len(clientObjs)):
-        for param, global_param in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters()):
+        for param, global_param in zip(clientObjs[id].model.base.parameters(), server_global_base.parameters()):
             param.data = global_param.data.clone()
 
     return clientObjs, server
@@ -101,7 +101,7 @@ def send_global_head(global_cls_head, clientObjs):
 
 def run(args):
     # initialize server
-    server = Server(args)
+    server = Server(args, zeroshot=True)
 
     # set dataset
     dataset = globals()[args.dataset]

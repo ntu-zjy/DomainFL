@@ -48,13 +48,17 @@ def DLG(net, origin_grad, target_inputs):
         for iters in range(100):
             # print('iter:', iters)
             def closure():
-                optimizer.zero_grad()
                 params = [p for p in net.parameters() if p.requires_grad]
+                # print the name of the parameters
+                optimizer.zero_grad()
                 dummy_pred = net(F.sigmoid(dummy_data))
                 dummy_loss = criterion(dummy_pred, dummy_out)
-                dummy_grad = torch.autograd.grad(dummy_loss, params, create_graph=True)
-
+                print('len(params):', len(params))
+                dummy_grad = torch.autograd.grad(dummy_loss, params, create_graph=True, allow_unused=True)
+                print('len(dummy_grad):', len(dummy_grad))
+                print('len(origin_grad):', len(origin_grad))
                 grad_diff = 0
+                # remove the None grad
                 for gx, gy in zip(dummy_grad, origin_grad):
                     grad_diff += ((gx - gy) ** 2).sum()
                 grad_diff.backward()
@@ -63,6 +67,8 @@ def DLG(net, origin_grad, target_inputs):
 
             optimizer.step(closure)
 
+        print('history:', len(history))
+        print('history.shape:', history[0].shape)
         plt.figure(figsize=(3*len(history), 4))
         for i in range(len(history)):
             plt.subplot(1, len(history), i + 1)

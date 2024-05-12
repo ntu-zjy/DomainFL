@@ -1,0 +1,2 @@
+{"base_model": "CLIP", "dataset": "office", "subset_size": 100, "image_encoder_name": "ViT-B-32", "optimizer": "AdamW", "batch_size": 128, "learning_rate": 0.001, "global_rounds": 50, "local_epochs": 1, "warm_up": 20, "seed": 1}
+{"acc": [[80.8397, 94.1441, 92.2018, 85.8711], [79.6947, 93.6186, 92.5841, 85.3224], [79.0076, 94.1441, 92.2783, 83.9506], [78.2443, 93.6186, 92.2783, 85.4595]], "total_test_time": 0, "total_train_time": 0}

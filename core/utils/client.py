@@ -100,10 +100,23 @@ class Client(nn.Module):
     # fine-tune on the whole image encoder
     def freeze_except_base(self):
         for name, param in self.model.named_parameters():
-            if 'base' not in name:
+            if 'base' not in name or 'adapter' in name:
                 param.requires_grad_(False)
             else:
                 param.requires_grad_(True)
+
+        self.params = [p for p in self.model.parameters() if p.requires_grad]
+        self.optimizer = torch.optim.AdamW(self.params, lr=self.lr)
+        self.loss = torch.nn.CrossEntropyLoss()
+        # warmup + cosine annealing lr scheduler on every epoch
+        def lr_lambda(current_epoch):
+            if current_epoch < self.warm_up:
+                return (float(current_epoch) + 1) / float(max(1, self.warm_up))
+            else:
+                # Cosine annealing
+                return 0.5 * (1 + math.cos(math.pi * (current_epoch - self.warm_up) / (self.max_epochs - self.warm_up)))
+
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda)
 
     def freeze_except_adapter(self):
         for name, param in self.model.named_parameters():

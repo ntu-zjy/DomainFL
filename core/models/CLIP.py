@@ -42,9 +42,6 @@ class ImageEncoder(torch.nn.Module):
             self.output_dim = self.model.visual.head.proj.out_features
 
         self.adapter = Adapter(self.output_dim, 4, bias=False).to(args.device)
-
-        # self.global_proto_shifter = copy.deepcopy(nn.Linear(self.output_dim, self.output_dim, bias=False).to(args.device))
-        self.global_proto_shifter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
         self.global_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
         self.local_adapter = copy.deepcopy(Adapter(self.output_dim, 4, bias=False).to(args.device))
 
