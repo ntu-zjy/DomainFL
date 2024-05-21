@@ -17,8 +17,11 @@ class CustomConcatDataset(ConcatDataset):
 def build_subset(dataObject, num_classes):
     # Use set for faster lookup
     allowed_labels = set(range(num_classes))
-    valid_class_labels = dataObject.train_dataset.img_labels[dataObject.train_dataset.img_labels['label'].isin(allowed_labels)]
-    new_class_to_idx = dict(zip(valid_class_labels['class_name'], valid_class_labels['label']))
+    # valid_class_labels = dataObject.train_dataset.img_labels[dataObject.train_dataset.img_labels['label'].isin(allowed_labels)]
+    # new_class_to_idx = dict(zip(valid_class_labels['class_name'], valid_class_labels['label']))
+
+    # only keep the num_classes of classes in the class_to_idx
+    new_class_to_idx = {k: v for k, v in dataObject.train_dataset.class_to_idx.items() if v < num_classes}
 
     # Filter indices for both training and testing datasets
     train_labels = dataObject.train_dataset.img_labels['label'].values
@@ -33,7 +36,6 @@ def build_subset(dataObject, num_classes):
     # Use CustomSubset to create new subsets
     dataObject.train_dataset = CustomSubset(dataObject.train_dataset, train_indices, new_class_to_idx, train_labels)
     dataObject.test_dataset = CustomSubset(dataObject.test_dataset, test_indices, new_class_to_idx, test_labels)
-
     # Update DataLoader and classnames
     dataObject.train_loader = DataLoader(dataObject.train_dataset, shuffle=True, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
     dataObject.test_loader = DataLoader(dataObject.test_dataset, batch_size=dataObject.test_loader.batch_size, num_workers=dataObject.test_loader.num_workers, pin_memory=True)
@@ -47,16 +49,21 @@ def split_train_and_val(dataObject, val_percent=0.2):
 
     for train_index, val_index in sss.split(list(range(len(targets))), targets):
         pass
+    # print("train_index:", train_index)
+    # print("val_index:", val_index)
+    train_labels = targets[train_index]
+    val_labels = targets[val_index]
+    # print("train_labels:", train_labels)
 
     class_to_idx = dataObject.train_dataset.class_to_idx
     train_dataset = copy.deepcopy(dataObject.train_dataset)
     # Use CustomSubset to create new subsets
-    dataObject.train_dataset = CustomSubset(train_dataset, train_index, class_to_idx)
-    dataObject.val_dataset = CustomSubset(train_dataset, val_index, class_to_idx)
-
+    dataObject.train_dataset = CustomSubset(train_dataset, train_index, class_to_idx, train_labels)
+    dataObject.val_dataset = CustomSubset(train_dataset, val_index, class_to_idx, val_labels)
     # Update DataLoader and classnames
     dataObject.train_loader = DataLoader(dataObject.train_dataset, shuffle=True, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
     dataObject.val_loader = DataLoader(dataObject.val_dataset, batch_size=dataObject.train_loader.batch_size, num_workers=dataObject.train_loader.num_workers, pin_memory=True)
+
     return dataObject
 
 def local_adaptation_subset_trainloader(train_dataset, train_loader, num_percent):

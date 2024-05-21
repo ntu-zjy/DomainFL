@@ -58,7 +58,7 @@ class Client(nn.Module):
         self.model.to(self.device)
 
         self.params = [p for p in self.model.parameters() if p.requires_grad]
-        self.optimizer = torch.optim.AdamW(self.params, lr=self.lr)
+        self.optimizer = torch.optim.AdamW(self.params, lr=0.1)
         self.loss = torch.nn.CrossEntropyLoss()
         # warmup + cosine annealing lr scheduler on every epoch
         def lr_lambda(current_epoch):
@@ -85,7 +85,8 @@ class Client(nn.Module):
         self.num_batches_tracked = torch.tensor(0, dtype=torch.long, device=self.device)
 
         self.client_mean = nn.Parameter(Variable(torch.zeros_like(rep[0])))
-        self.opt_client_mean = torch.optim.SGD([self.client_mean], lr=self.lr)
+        self.client_mean.requires_grad_(True)
+        self.opt_client_mean = torch.optim.AdamW([self.client_mean], lr=self.lr)
 
     def reset_running_stats(self):
         self.running_mean.zero_()
@@ -134,6 +135,7 @@ class Client(nn.Module):
             else:
                 param.requires_grad_(True)
 
+
     def cal_val_loss(self):
         val_loss = 0
         self.model.eval()
@@ -145,7 +147,6 @@ class Client(nn.Module):
         return val_loss
 
     def fine_tune(self, centralized=None):
-        print(f'Client {self.id}, self.client_mean: {self.client_mean}')
         self.model.train()
         self.reset_running_stats()
         for epoch in range(self.local_epochs):
@@ -189,7 +190,6 @@ class Client(nn.Module):
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
             self.scheduler.step()
-        print(f'Client {self.id}, self.client_mean: {self.client_mean}')
 
     def test(self, test_dataloader=None):
         # use own test_dataloader if not provided

@@ -50,12 +50,13 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     for i in range(protos.shape[0]):
         training_data.append((protos[i], labels[i]))
     # print('training_data:', training_data)
+    print('the parameters of the training data:', protos.numel() * protos.element_size() * 8)
     return training_data
 
 def send_adaptive_global_adapter(global_adapter, clientObjs):
     for client in clientObjs:
-        client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
-        client.model.base.adapter.load_state_dict(global_adapter.state_dict())
+        client.model.base.global_adapter.load_state_dict(global_adapter)
+        client.model.base.adapter.load_state_dict(global_adapter)
     return clientObjs
 
 def send_global_head(global_cls_head, clientObjs):
@@ -130,6 +131,7 @@ def proto_initialization(clientObjs, server):
     clientObjs = send_adaptive_global_adapter(global_adapter, clientObjs)
     clientObjs = send_global_head(server.global_cls_head, clientObjs)
     server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
+    print('parameters of the global adapter:', sum(p.numel() * p.element_size() * 8 for p in global_adapter.parameters()))
     return clientObjs, server
 
 def calculate_fedavg_weights(clients):
@@ -166,6 +168,46 @@ def fedavg(weights, clientObjs, server):
 
     return clientObjs, server
 
+import torch
+from torch.utils.data import DataLoader, Dataset, Subset
+import numpy as np
+from collections import defaultdict
+
+def generate_fewshot_data(dataObject, few_shot_num, batch_size=8):
+    """
+    Create a DataLoader for few-shot learning, where each class contains only a certain percentage of its original samples.
+    This version always selects the first N percent of samples from each class, where N is the percentage specified.
+
+    Args:
+    dataset (Dataset): The original dataset.
+    few_shot_num (int): The number of samples to include from each class (e.g., 10 for 10-shot).
+    classnames (list or dict): A list or dictionary mapping labels to class names.
+    batch_size (int): The size of each batch (default is 32).
+
+    Returns:
+    DataLoader: A DataLoader containing a subset of the original dataset, sampled according to the specified percentage.
+    """
+    classnames = dataObject.classnames
+    indices_per_class = defaultdict(list)
+
+    train_labels = dataObject.train_dataset.image_labels
+    unique_labels = np.unique(train_labels)
+
+    for label in unique_labels:
+        label_indices = np.where(train_labels == label)[0]
+        indices_per_class[classnames[label]].extend(label_indices)
+
+    selected_indices = []
+    for indices in indices_per_class.values():
+        num_samples = max(1, min(few_shot_num, len(indices)))
+        # Select the first num_samples indices from the list
+        selected_indices.extend(indices[:num_samples])
+
+    subset = Subset(dataObject.train_dataset, selected_indices)
+
+    dataObject.train_loader = DataLoader(subset, batch_size=batch_size, shuffle=True, num_workers=4)
+    return dataObject
+
 def run(args):
     # initialize server
     server = Server(args)
@@ -198,61 +240,28 @@ def run(args):
     # train and test clients
     total_test_time, total_train_time = 0, 0
 
-    patience = 10
-    best_loss = float('inf')
-    counter = 0
-    early_stop = True
-    for r in range(args.global_rounds):
-        # fine tune clients
-        for id in range(len(clients)):
-            clients[id].fine_tune(global_round=r)
+    global_adapter = torch.load(f'../weights/{args.image_encoder_name}/{args.dataset}_sub{args.subset_size}_ours/client_0_global_adapter.pth', map_location=args.device)
+    clients = send_adaptive_global_adapter(global_adapter, clients)
+    clients = send_global_head(server.global_cls_head, clients)
 
-        start_time = time.time()
-        clients, server = proto_initialization(clients, server)
-        train_time = time.time() - start_time
-        total_train_time += train_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
+    start_time = time.time()
+    # few shot
+    for id in range(len(clients)):
+        clients[id].fine_tune()
+    total_train_time += time.time() - start_time
 
-        print(f'==================== Round {r} ====================')
-        # cal val loss
-        val_loss = 0
-        for id in range(len(clients)):
-            val_loss += clients[id].cal_val_loss()
-        print(f'Round {r} val loss: {val_loss:.4f}')
-        if val_loss < best_loss:
-            best_loss = val_loss
-            counter = 0
-            print("save finetuned local models")
-            for client in clients:
-                client.save_adapter(args, algo='ours')
-        else:
-            counter += 1
-            if counter >= patience:
-                print(f'Early stopping at round {r}')
-                early_stop = True
-
-        print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
-
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
-
-            test_time = time.time() - start_time
-            print(f'Round {r} test time cost: {test_time:.2f}s')
-            total_test_time += test_time
-            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                f.write('\n')
-
-            if early_stop:
-                break
-
-
-
+    start_time = time.time()
+    client_acc = []
+    for id, client in enumerate(clients):
+        accs = client.test_on_all_clients(clients)
+        client_acc.append(accs)
+    total_test_time += time.time() - start_time
+    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_fewshot_full_kd{args.kd_loss_weight}.json', 'a+') as f:
+        json.dump({'round':-1, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        f.write('\n')
     total_time_cost = total_test_time + total_train_time
+    print(f'Train time cost: {total_train_time:.2f}s')
+    print(f'Test time cost: {total_test_time:.2f}s')
     print(f'Total time cost: {total_time_cost:.2f}s')
 
 if __name__ == "__main__":
@@ -274,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
     parser.add_argument('-rw','--regularization_weight', type=float, default=0, help='Regularization weight')
-    parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
+    parser.add_argument('-kdw','--kd_loss_weight', type=float, default=10, help='KD loss weight')
 
     args = parser.parse_args()
 
@@ -284,7 +293,7 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_fewshot_full_kd{args.kd_loss_weight}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

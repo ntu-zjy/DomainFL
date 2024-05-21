@@ -8,7 +8,7 @@ d = {'RN50':'openai',
     'ViT-B-32': 'laion2b_s34b_b79k',
     'ViT-B-16': 'laion2b_s34b_b88k',
     'ViT-L-14': 'laion2b_s32b_b82k',
-    'convnext_base_w': 'laion2b_s13b_b82k'}
+    'convnext_base': 'laion400m_s13b_b51k'}
 
 class Adapter(nn.Module):
     def __init__(self, c_in, reduction=4, bias=False):
@@ -36,7 +36,7 @@ class ImageEncoder(torch.nn.Module):
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
         # use the output dim of the visual encoder as the input dim of the adapter
-        if 'ViT' in name:
+        if 'ViT' in name or 'RN50' in name:
             self.output_dim = self.model.visual.output_dim
         else:
             self.output_dim = self.model.visual.head.proj.out_features

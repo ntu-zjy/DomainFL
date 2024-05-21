@@ -32,7 +32,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size) if args.dataset == 'data' else cd
+        cd = build_subset(cd, args.subset_size) 
         cd = split_train_and_val(cd)
         cds.append(cd)
         cls_head = server.generate_cls_head(cd, data_name)

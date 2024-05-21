@@ -141,7 +141,9 @@ class Client(nn.Module):
                 val_loss += self.loss(output, labels).item()
         return val_loss
 
-    def fine_tune(self, centralized=None, global_round=None):
+    def fine_tune(self, centralized=None, global_round=None, train_dataloader=None):
+        if train_dataloader is not None:
+            self.train_dataloader = train_dataloader
         protos = defaultdict(list)
         self.model.train()
         for epoch in range(self.local_epochs):
@@ -156,15 +158,15 @@ class Client(nn.Module):
                 outputs = self.model.head(local_rep)
                 loss = self.loss(outputs, labels)
                 if global_round != 0:
+                    # print('knowledge distillation...')
                     global_rep = rep + self.model.base.global_adapter(rep)
                     global_outputs = self.model.head(global_rep)
 
-                    mse_loss = self.mse_loss(rep, global_rep)
                     source = F.log_softmax(outputs, dim=1)
                     target = F.softmax(global_outputs, dim=1)
                     kd_loss = self.kd_loss(source, target)
 
-                    loss = loss + self.rw * mse_loss + self.kdw * kd_loss
+                    loss = loss + self.kdw * kd_loss
                     # print('cross loss:', loss.item(), 'mse loss:', mse_loss.item(), 'kd loss:', kd_loss.item())
 
                 for i, yy in enumerate(labels):

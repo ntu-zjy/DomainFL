@@ -15,6 +15,7 @@ from office.datasets_utils.officeproduct import OfficeProduct
 
 data = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph'] # domainnet
 office = ['OfficeClipart', 'OfficeProduct', 'OfficeReal', 'OfficeArt'] # officehome
+office31 = ['amazon', 'dslr', 'webcam'] # office31
 random.seed(1)
 np.random.seed(1)
 

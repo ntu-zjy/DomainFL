@@ -21,6 +21,7 @@ class BaseOfficeHomeDataset(Dataset):
         self.img_labels['label'] = self.img_labels['label'].map(self.class_to_idx)
 
     def _build_image_label_list(self):
+
         # Initialize lists to store image paths and labels
         img_paths = []
         labels = []
@@ -29,8 +30,13 @@ class BaseOfficeHomeDataset(Dataset):
         for class_dir in os.listdir(domain_path):
             class_path = os.path.join(domain_path, class_dir)
             if os.path.isdir(class_path):
+                # split test and train data into 5:5
+                if self.split == 'train':
+                    class_path_list = os.listdir(class_path)[:int(len(os.listdir(class_path)) * 0.5)]
+                else:
+                    class_path_list = os.listdir(class_path)[int(len(os.listdir(class_path)) * 0.5):]
                 # Traverse all image files in the directory
-                for img_file in os.listdir(class_path):
+                for img_file in class_path_list:
                     if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
                         img_paths.append(os.path.join(class_path, img_file))
                         labels.append(class_dir.replace('_', ' '))  # Remove underscores from class names

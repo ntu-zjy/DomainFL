@@ -72,7 +72,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size) if args.dataset == 'data' else cd
+        cd = build_subset(cd, args.subset_size) 
         cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
         client = ClientMOON(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)

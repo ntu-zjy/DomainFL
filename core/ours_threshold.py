@@ -50,6 +50,7 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     for i in range(protos.shape[0]):
         training_data.append((protos[i], labels[i]))
     # print('training_data:', training_data)
+    print('the parameters of the training data:', protos.numel() * protos.element_size() * 8)
     return training_data
 
 def send_adaptive_global_adapter(global_adapter, clientObjs):
@@ -69,6 +70,7 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
     server.global_cls_head.train()
     server.freeze_except_global_adapter()
     optimizer = torch.optim.AdamW(server.image_encoder.global_adapter.parameters(), lr=1e-5)
+    r=0
     while True:
         for i, (proto, label) in enumerate(training_data):
             # print('proto:', proto.shape)
@@ -85,11 +87,12 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
             optimizer.step()
 
             losses.append(loss.item())
+        r+=1
         if np.std(losses[-num_losses:]) < threshold and len(losses) > num_losses:
             print(f'server epoch {i} loss std: {np.std(losses[-num_losses:])}')
             break
 
-    return server.image_encoder.global_adapter
+    return server.image_encoder.global_adapter, r
 
 def receive_protos(clients):
     uploaded_ids = []
@@ -122,15 +125,16 @@ def calculate_fedts_weights(clients):
     return weights
 
 
-def proto_initialization(clientObjs, server):
+def proto_initialization(clientObjs, server, args):
     uploaded_protos = receive_protos(clientObjs)
     # global_protos = proto_aggregation(uploaded_protos) # do not aggregate the protos !!!
     training_data = generate_protos_training_data(uploaded_protos)
-    global_adapter = server_adative_training(training_data, server)
+    global_adapter, rounds = server_adative_training(training_data, server, args.threshold)
     clientObjs = send_adaptive_global_adapter(global_adapter, clientObjs)
     clientObjs = send_global_head(server.global_cls_head, clientObjs)
     server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
-    return clientObjs, server
+    print('parameters of the global adapter:', sum(p.numel() * p.element_size() * 8 for p in global_adapter.parameters()))
+    return clientObjs, server, rounds
 
 def calculate_fedavg_weights(clients):
     total_train_num = 0
@@ -180,7 +184,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size) 
+        cd = build_subset(cd, args.subset_size)
         cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
@@ -208,7 +212,7 @@ def run(args):
             clients[id].fine_tune(global_round=r)
 
         start_time = time.time()
-        clients, server = proto_initialization(clients, server)
+        clients, server, converge_rounds = proto_initialization(clients, server, args)
         train_time = time.time() - start_time
         total_train_time += train_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
@@ -243,8 +247,8 @@ def run(args):
             test_time = time.time() - start_time
             print(f'Round {r} test time cost: {test_time:.2f}s')
             total_test_time += test_time
-            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_threshold_{args.threshold}.json', 'a+') as f:
+                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'converge_round': converge_rounds}, f)
                 f.write('\n')
 
             if early_stop:
@@ -275,6 +279,7 @@ if __name__ == "__main__":
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
     parser.add_argument('-rw','--regularization_weight', type=float, default=0, help='Regularization weight')
     parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
+    parser.add_argument('-threshold','--threshold', type=float, default=0.001, help='Threshold')
 
     args = parser.parse_args()
 
@@ -284,7 +289,7 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_threshold_{args.threshold}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

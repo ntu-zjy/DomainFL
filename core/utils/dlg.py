@@ -53,10 +53,8 @@ def DLG(net, origin_grad, target_inputs):
                 optimizer.zero_grad()
                 dummy_pred = net(F.sigmoid(dummy_data))
                 dummy_loss = criterion(dummy_pred, dummy_out)
-                print('len(params):', len(params))
-                dummy_grad = torch.autograd.grad(dummy_loss, params, create_graph=True, allow_unused=True)
-                print('len(dummy_grad):', len(dummy_grad))
-                print('len(origin_grad):', len(origin_grad))
+
+                dummy_grad = torch.autograd.grad(dummy_loss, params, create_graph=True)
                 grad_diff = 0
                 # remove the None grad
                 for gx, gy in zip(dummy_grad, origin_grad):

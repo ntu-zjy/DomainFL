@@ -17,6 +17,18 @@ warnings.simplefilter("ignore")
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
+def init_global_mean(weights, clientObjs):
+    for id in range(len(clientObjs)):
+        clientObjs[id].fine_tune()
+
+    global_mean = 0
+    for id in range(len(clientObjs)):
+        global_mean += weights[id] * clientObjs[id].running_mean
+
+    for id in range(len(clientObjs)):
+        clientObjs[id].global_mean = global_mean.data.clone()
+    return clientObjs
+
 def calculate_fedavg_weights(clients):
     total_train_num = 0
     num_list = []
@@ -71,7 +83,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
         cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size) if args.dataset == 'data' else cd
+        cd = build_subset(cd, args.subset_size) 
         cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
         client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
@@ -94,6 +106,7 @@ def run(args):
     best_loss = float('inf')
     counter = 0
     early_stop = False
+    clients = init_global_mean(calculate_fedavg_weights(clients), clients)
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         # cal val loss
@@ -101,7 +114,7 @@ def run(args):
         for id in range(len(clients)):
             val_loss += clients[id].cal_val_loss()
         print(f'Round {r} val loss: {val_loss:.4f}')
-        if val_loss < best_loss:
+        if val_loss < best_loss and r != 0: # note that the first round is not counted, beacause it will be very low as it is a local model
             best_loss = val_loss
             counter = 0
             print("save finetuned local models")
