@@ -1,18 +1,24 @@
 # Config the environment
 
+Create the environment.
+
 ```
 conda create -n DomainFL python=3.10
 ```
+
+Activate the environment.
 
 ```
 conda activate DomainFL
 ```
 
+Install the required repository.
+
 ```
 pip install -r requirements.txt
 ```
 
-go to the core directory
+Go to the core file directory.
 
 ```
 cd core
@@ -20,7 +26,7 @@ cd core
 
 # Visualization
 
-You can see some visulization result by playing with the 'visualize.ipynb'.
+You can see some visulization result in our paper by playing with the 'visualize.ipynb'.
 
 # Basic experiment
 
