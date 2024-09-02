@@ -6,7 +6,7 @@ import torch
 import random
 import argparse
 from models.CLIP import *
-from utils.get_data import data, office
+from utils.get_data import domainnet
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
@@ -222,7 +222,7 @@ def run(args):
     few_shot_cds = []
     for id, data_name in enumerate(dataset):
         init_image_encoder = copy.deepcopy(server.image_encoder)
-        cd = get_data(data_name, server.train_preprocess, server.val_preprocess, f'./{args.dataset}/{data_name}', args.batch_size, args.num_workers)
+        cd = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
         cd = build_subset(cd, args.subset_size)
         cd = split_train_and_val(cd)
         few_shot_cd = generate_fewshot_data(cd, args.fewshot)
@@ -269,7 +269,7 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
-    parser.add_argument('-d','--dataset', type=str, default='data', help='Dataset name')
+    parser.add_argument('-d','--dataset', type=str, default='domainnet', help='Dataset name')
     parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
     parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
