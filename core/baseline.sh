@@ -2,11 +2,11 @@
 # Define constants
 
 bs=32
-algo=("local" "zeroshot" "fedavg" "fedprox" "fedditto" "fedmoon" "fedproto" "fedavgDBE" "ours")
+algo=("local" "zeroshot" "fedavg" "fedprox" "fedditto" "fedmoon" "fedproto" "fedavgDBE")
 ss=100
 gr=200
-did=3
-ien="ViT-B-16"
+did=0
+ien="ViT-B-32"
 data=domainnet
 
 # python fedavg.py -bs 32 -gr 200 -did 0 -ien "ViT-B-32" -d domainnet -ss 50
