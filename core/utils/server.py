@@ -7,11 +7,13 @@ import sys
 sys.path.append('..')
 from models.CLIP import ClassificationHead, Adapter, ImageEncoder
 
-d = {'RN50':'openai',
+d = {'RN50':'yfcc15m',
+    'RN101': 'cc12m',
     'ViT-B-32': 'laion2b_s34b_b79k',
     'ViT-B-16': 'laion2b_s34b_b88k',
     'ViT-L-14': 'laion2b_s32b_b82k',
-    'convnext_base': 'laion400m_s13b_b51k'}
+    'convnext_base': 'laion400m_s13b_b51k',
+    'nllb-clip-base': 'v1'}
 
 class Server(torch.nn.Module):
     def __init__(self, args, zeroshot=False):
@@ -23,6 +25,9 @@ class Server(torch.nn.Module):
             name, pretrained=pretrained)
 
         self.device = args.device
+        self.warm_up = args.warm_up
+        self.max_epochs = args.local_epochs * args.global_rounds
+        self.learning_rate = args.lr
         self.pretrained_model.to(self.device)
         self.image_encoder = ImageEncoder(args, zeroshot).to(self.device)
         self.criterion = torch.nn.CrossEntropyLoss()

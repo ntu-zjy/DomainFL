@@ -203,7 +203,11 @@ class Client(nn.Module):
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-                outputs = self.model(inputs)
+
+                rep = self.model.base.model.encode_image(inputs)
+                local_rep = rep + self.model.base.adapter(rep)
+                outputs = self.model.head(local_rep)
+
                 prob = F.softmax(outputs, 1)
                 _, predicted = torch.max(prob, 1)
                 prob_list.append(prob.cpu().numpy())
@@ -223,6 +227,10 @@ class Client(nn.Module):
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
+        print(f'Client {self.id}')
+        print('last layer of global adapter:', self.model.base.adapter.fc[0].weight.data)
+        print('backbone:', self.model.base.model.visual.conv1.bias.data[-1][-1])
+        print('head:', self.model.head.weight.data)
         for client in clients:
             acc = self.test(client.test_dataloader)
             accs.append(acc)
