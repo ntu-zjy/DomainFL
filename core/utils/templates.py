@@ -364,6 +364,33 @@ officereal_template = [
     lambda c: f'a detailed visual of a {c}.',
 ]
 
+product_template = [
+    lambda c: f'a photo of a {c} product.',
+    lambda c: f'an image featuring a {c} product.',
+    lambda c: f'a picture showcasing a {c} product.',
+    lambda c: f'a visual representation of a {c} product.',
+    lambda c: f'a photograph displaying a {c} product.',
+    lambda c: f'an illustration of a {c} product.',
+]
+
+reallife_template = [
+    lambda c: f'a real-life photo of a {c}.',
+    lambda c: f'an actual image of a {c}.',
+    lambda c: f'a high-resolution photograph of a {c}.',
+    lambda c: f'a true-to-life depiction of a {c}.',
+    lambda c: f'a photorealistic rendering of a {c}.',
+    lambda c: f'a detailed visual of a {c}.',
+]
+
+synthetic_template = [
+    lambda c: f'a 3D rendering of a {c} from a different point of view.',
+    lambda c: f'a synthetic image of a {c} created using 3D software.',
+    lambda c: f'a computer-generated depiction of a {c} from various angles.',
+    lambda c: f'a virtual representation of a {c} made in 3D software.',
+    lambda c: f'an artificial image of a {c} with different perspectives.',
+    lambda c: f'a digitally created template of a {c} with varying viewpoints.',
+]
+
 
 dataset_to_template = {
     'Cars': cars_template,
@@ -393,6 +420,9 @@ dataset_to_template = {
     'OfficeArt': officeart_template,
     'OfficeProduct': officeproduct_template,
     'OfficeReal': officereal_template,
+    'product': product_template,
+    'reallife': reallife_template,
+    'synthetic': synthetic_template,
 }
 
 

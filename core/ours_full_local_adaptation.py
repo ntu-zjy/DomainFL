@@ -2,11 +2,12 @@ import json
 import os
 import copy
 import time
+import math
 import torch
 import random
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet
+from utils.get_data import domainnet, adaptiope
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
@@ -69,7 +70,17 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
     server.image_encoder.train()
     server.global_cls_head.train()
     server.freeze_except_global_adapter()
-    optimizer = torch.optim.AdamW(server.image_encoder.global_adapter.parameters(), lr=1e-5)
+    optimizer = torch.optim.AdamW(server.image_encoder.global_adapter.parameters(), lr=server.learning_rate)
+    def lr_lambda(current_epoch):
+        if current_epoch < server.warm_up:
+            return (float(current_epoch) + 1) / float(max(1, server.warm_up))
+        else:
+            # Cosine annealing
+            return 0.5 * (1 + math.cos(math.pi * (current_epoch - server.warm_up) / (server.max_epochs - server.warm_up)))
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+    convergence_epochs = 0
     while True:
         for i, (proto, label) in enumerate(training_data):
             # print('proto:', proto.shape)
@@ -86,8 +97,11 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
             optimizer.step()
 
             losses.append(loss.item())
+        convergence_epochs += 1
+        scheduler.step()
+        print(f'server epoch {convergence_epochs} loss std: {np.std(losses[-num_losses:])}')
         if np.std(losses[-num_losses:]) < threshold and len(losses) > num_losses:
-            print(f'server epoch {i} loss std: {np.std(losses[-num_losses:])}')
+            print(f'convergence at epoch {convergence_epochs}')
             break
 
     return server.image_encoder.global_adapter

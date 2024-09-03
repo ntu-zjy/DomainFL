@@ -1,0 +1,2 @@
+{"base_model": "CLIP", "dataset": "adaptiope", "subset_size": 10, "image_encoder_name": "nllb-clip-base", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 10, "seed": 1}
+{"round": 0, "acc": [[96.8, 96.0, 96.6], [96.8, 96.0, 96.6], [96.8, 96.0, 96.6]], "total_test_time": 13.476455211639404, "total_train_time": 1.3748342990875244}

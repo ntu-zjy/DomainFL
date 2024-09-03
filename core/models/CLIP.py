@@ -4,11 +4,13 @@ import open_clip
 import torch.nn as nn
 
 # https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv
-d = {'RN50':'openai',
+d = {'RN50':'yfcc15m',
+    'RN101': 'cc12m',
     'ViT-B-32': 'laion2b_s34b_b79k',
     'ViT-B-16': 'laion2b_s34b_b88k',
     'ViT-L-14': 'laion2b_s32b_b82k',
-    'convnext_base': 'laion400m_s13b_b51k'}
+    'convnext_base': 'laion400m_s13b_b51k',
+    'nllb-clip-base': 'v1'}
 
 class Adapter(nn.Module):
     def __init__(self, c_in, reduction=4, bias=False):
@@ -36,7 +38,7 @@ class ImageEncoder(torch.nn.Module):
         self.model, self.train_preprocess, self.val_preprocess = open_clip.create_model_and_transforms(
             name, pretrained=pretrained)
         # use the output dim of the visual encoder as the input dim of the adapter
-        if 'ViT' in name or 'RN50' in name:
+        if 'ViT' in name or 'RN50' in name or 'nllb' in name:
             self.output_dim = self.model.visual.output_dim
         else:
             self.output_dim = self.model.visual.head.proj.out_features
