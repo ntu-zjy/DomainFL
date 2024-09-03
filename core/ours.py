@@ -256,62 +256,34 @@ def run(args):
     # train and test clients
     total_test_time, total_train_time = 0, 0
 
-    patience = 10
-    best_loss = float('inf')
-    counter = 0
-    early_stop = True
-    for r in range(args.global_rounds):
-        # fine tune clients
-        for id in range(len(clients)):
-            clients[id].fine_tune(global_round=r)
+    # fine tune clients
+    for id in range(len(clients)):
+        clients[id].fine_tune(global_round=0)
 
-        start_time = time.time()
-        clients, server = proto_initialization(clients, server)
-        train_time = time.time() - start_time
-        total_train_time += train_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
+    start_time = time.time()
+    clients, server = proto_initialization(clients, server)
+    train_time = time.time() - start_time
+    total_train_time += train_time
+    print(f'train time cost: {train_time:.2f}s')
 
-        print(f'==================== Round {r} ====================')
-        # cal val loss
-        val_loss = 0
-        for id in range(len(clients)):
-            val_loss += clients[id].cal_val_loss()
-        print(f'Round {r} val loss: {val_loss:.4f}')
-        if val_loss < best_loss:
-            best_loss = val_loss
-            counter = 0
-            print("save finetuned local models")
-            for client in clients:
-                client.save_adapter(args, algo='ours')
-        else:
-            counter += 1
-            if counter >= patience:
-                print(f'Early stopping at round {r}')
-                early_stop = True
+    # cal val loss
+    val_loss = 0
+    for id in range(len(clients)):
+        val_loss += clients[id].cal_val_loss()
+    print(f'val loss: {val_loss:.4f}')
 
-        print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
+    start_time = time.time()
+    client_acc = []
+    for id, client in enumerate(clients):
+        accs = client.test_on_all_clients(clients)
+        client_acc.append(accs)
 
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
-
-            test_time = time.time() - start_time
-            print(f'Round {r} test time cost: {test_time:.2f}s')
-            total_test_time += test_time
-            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                f.write('\n')
-
-            if early_stop:
-                break
-
-
-
-    total_time_cost = total_test_time + total_train_time
-    print(f'Total time cost: {total_time_cost:.2f}s')
+    test_time = time.time() - start_time
+    print(f'Round {r} test time cost: {test_time:.2f}s')
+    total_test_time += test_time
+    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
+        json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        f.write('\n')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
