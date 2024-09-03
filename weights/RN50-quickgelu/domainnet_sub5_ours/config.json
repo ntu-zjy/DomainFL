@@ -1,0 +1,1 @@
+{"base_model": "CLIP", "dataset": "domainnet", "subset_size": 5, "image_encoder_name": "RN50-quickgelu", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 10, "seed": 1}
