@@ -267,7 +267,7 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, e
                 new = i.data
                 new = new
                 prototype = torch.vstack((prototype,new))
-            # proto.shape = (feature_dim, number of samples in this label)
+
             # sample some of the prototypes
             if sample_ratio >= 1:
                 pass
@@ -304,17 +304,11 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, e
     return protos
 
 # some more sampling methods
-def average_sample(protos):
-    for [label, proto_list] in protos.items():
-        if len(proto_list) > 1:
-            proto = 0 * proto_list[0].data
-            for i in proto_list:
-                proto += i.data
-            protos[label] = proto / len(proto_list)
-        else:
-            protos[label] = proto_list[0]
-
-    return protos
+def average_sample(proto):
+    # proto.shape = (feature_dim, number of samples in this label)
+    # return proto (feature_dim, 1)
+    proto = torch.mean(proto, dim=1, keepdim=True)
+    return proto
 
 
 # ramdom sample
