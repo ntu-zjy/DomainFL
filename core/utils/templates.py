@@ -374,13 +374,14 @@ product_template = [
 ]
 
 reallife_template = [
-    lambda c: f'a real-life photo of a {c}.',
-    lambda c: f'an actual image of a {c}.',
-    lambda c: f'a high-resolution photograph of a {c}.',
-    lambda c: f'a true-to-life depiction of a {c}.',
-    lambda c: f'a photorealistic rendering of a {c}.',
-    lambda c: f'a detailed visual of a {c}.',
+    lambda c: f'a photo of a {c} in real life.',
+    lambda c: f'a realistic image of a {c}.',
+    lambda c: f'an everyday photo of a {c}.',
+    lambda c: f'a {c} as seen in the natural environment.',
+    lambda c: f'a candid shot of a {c}.',
+    lambda c: f'a {c} that you would see on the street.',
 ]
+
 
 synthetic_template = [
     lambda c: f'a 3D rendering of a {c} from a different point of view.',
