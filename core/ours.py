@@ -25,26 +25,38 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     classes = uploaded_protos[0].keys()
     protos = []
     labels = []
+    # proto in every client
     for proto in uploaded_protos:
+        # proto in every class
         for c in classes:
-            protos.append(proto[c])
-            labels.append(c)
+            protos_class_c = proto[c]
+            protos.append(protos_class_c)
+            # labels.append(c)
+            labels.extend([c]*protos_class_c.shape[0])
 
     # generate batched data
-    protos = torch.stack(protos)
+    protos = torch.vstack(protos)
     labels = torch.tensor(labels, dtype=torch.long)
-    # print('protos:', protos.shape)
-    protos = protos.view(-1, batchsize, protos.shape[-1])
-    # print('protos:', protos.shape)
-    labels = labels.view(-1, batchsize)
-    protos = protos.to(torch.float32)
+    print('protos:', protos.shape)
+    print('labels:', labels.shape)
+    total_protos = protos.shape[0]
+
     # shuffle the training data
-    for i, (proto, label) in enumerate(zip(protos, labels)):
-        idx = torch.randperm(proto.shape[0])
-        proto = proto[idx, :].view(proto.shape)
-        label = label[idx].view(label.shape)
-        protos[i] = proto
-        labels[i] = label
+    perm = torch.randperm(total_protos)
+    protos = protos[perm, :]
+    labels = labels[perm]
+
+    # calculate the number of batches
+    max_full_batches = total_protos // batchsize
+    new_total_protos = max_full_batches * batchsize
+
+    # drop last
+    protos = protos[:new_total_protos]
+    labels = labels[:new_total_protos]
+
+
+    protos = protos.view(-1, batchsize, protos.shape[-1])
+    labels = labels.view(-1, batchsize)
 
     # generate training data
     training_data = []
@@ -52,6 +64,38 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
         training_data.append((protos[i], labels[i]))
     # print('training_data:', training_data)
     return training_data
+
+# def generate_protos_training_data(uploaded_protos, batchsize=10):
+#     classes = uploaded_protos[0].keys()
+#     protos = []
+#     labels = []
+#     for proto in uploaded_protos:
+#         for c in classes:
+#             protos.append(proto[c])
+#             labels.append(c)
+
+#     # generate batched data
+#     protos = torch.stack(protos)
+#     labels = torch.tensor(labels, dtype=torch.long)
+#     # print('protos:', protos.shape)
+#     protos = protos.view(-1, batchsize, protos.shape[-1])
+#     # print('protos:', protos.shape)
+#     labels = labels.view(-1, batchsize)
+#     protos = protos.to(torch.float32)
+#     # shuffle the training data
+#     for i, (proto, label) in enumerate(zip(protos, labels)):
+#         idx = torch.randperm(proto.shape[0])
+#         proto = proto[idx, :].view(proto.shape)
+#         label = label[idx].view(label.shape)
+#         protos[i] = proto
+#         labels[i] = label
+
+#     # generate training data
+#     training_data = []
+#     for i in range(protos.shape[0]):
+#         training_data.append((protos[i], labels[i]))
+#     # print('training_data:', training_data)
+#     return training_data
 
 def send_adaptive_global_adapter(global_adapter, clientObjs):
     for client in clientObjs:
