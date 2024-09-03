@@ -43,6 +43,9 @@ class Client(nn.Module):
         self.kd_loss = nn.KLDivLoss()
         self.rw = args.regularization_weight
         self.kdw = args.kd_loss_weight
+        self.sra = args.sample_ratio
+        self.sram = args.sample_ratio_method
+        self.dp = args.diff_privacy
 
         # for auto test data split
         self.domain_label = None
@@ -185,7 +188,7 @@ class Client(nn.Module):
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
 
-            self.protos = agg_func(protos)
+            self.protos = agg_func(protos, sample_ratio=self.sra, sample_method=self.sram, epsilon=self.dp)
 
             self.scheduler.step()
 
@@ -227,10 +230,6 @@ class Client(nn.Module):
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
-        print(f'Client {self.id}')
-        print('last layer of global adapter:', self.model.base.adapter.fc[0].weight.data)
-        print('backbone:', self.model.base.model.visual.conv1.bias.data[-1][-1])
-        print('head:', self.model.head.weight.data)
         for client in clients:
             acc = self.test(client.test_dataloader)
             accs.append(acc)
@@ -257,11 +256,55 @@ class Client(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
-def agg_func(protos):
+def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, epsilon=100):
     """
-    Returns the average of the weights.
+    use svd to aggregate the prototypes
     """
+    for [label, proto_list] in protos.items():
+        if len(proto_list) > 1:
+            prototype = proto_list[0].data
+            for i in proto_list[1:]:
+                new = i.data
+                new = new
+                prototype = torch.vstack((prototype,new))
+            # proto.shape = (feature_dim, number of samples in this label)
+            # sample some of the prototypes
+            if sample_ratio >= 1:
+                pass
+            elif sample_method == 'average':
+                prototype = average_sample(prototype.T).T
+            elif sample_method == 'random':
+                prototype = random_sample(prototype.T, sample_ratio).T
+            elif sample_method == 'cluster':
+                prototype = cluster_sample(prototype.T, sample_ratio).T
 
+            # if svd_ratio >= 1:
+            #     pass
+            # else:
+            #     # use svd decomposition to compress the prototype
+            #     U, S, Vt = torch.linalg.svd(prototype, full_matrices=False)
+
+            #     # print("S.shape:", S.shape)
+            #     k = math.ceil(S.shape[0] * svd_ratio)
+            #     Uk = U[:, :k]
+            #     Sk = torch.diag(S[:k])
+            #     Vtk = Vt[:k, :]
+            #     prototype = Uk @ Sk @ Vtk
+
+            # differential privacy
+            prototype = dp(prototype, epsilon=epsilon)
+            protos[label] = prototype
+        else:
+            prototype = proto_list[0]
+
+            # differential privacy
+            prototype = dp(prototype, epsilon=epsilon)
+            protos[label] = prototype
+    # protos[label] = prototype (embedding_nums, feature_dim)
+    return protos
+
+# some more sampling methods
+def average_sample(protos):
     for [label, proto_list] in protos.items():
         if len(proto_list) > 1:
             proto = 0 * proto_list[0].data
@@ -272,3 +315,46 @@ def agg_func(protos):
             protos[label] = proto_list[0]
 
     return protos
+
+
+# ramdom sample
+import random
+def random_sample(proto, sample_ratio=0.1):
+    # proto.shape = (feature_dim, number of samples in this label)
+    # return proto (feature_dim, sample_num)
+    sample_num = math.ceil(proto.shape[1] * sample_ratio)
+    sample_idx = random.sample(range(proto.shape[1]), sample_num)
+    proto = proto[:, sample_idx]
+    return proto
+
+# sample by clustering (k-means)
+from sklearn.cluster import KMeans
+def cluster_sample(proto, sample_ratio=0.1):
+    # print("proto.shape:", proto.shape)
+    # proto.shape = (feature_dim, number of samples in this label)
+    # We use k-means to cluster the samples. The number of cluster is equal to the number of samples we want to sample.
+    # Then we use the cluster center as the samples.
+    # return proto (feature_dim, sample_num)
+    device = proto.device
+    proto = proto.cpu().numpy()
+    cluster_num = math.ceil(proto.shape[1] * sample_ratio)
+    kmeans = KMeans(n_clusters=cluster_num, random_state=0).fit(proto.T)
+    cluster_center = kmeans.cluster_centers_
+    proto = cluster_center.T
+    proto = torch.tensor(proto).to(device)
+    proto = proto.to(torch.float32)
+    return proto
+
+
+# differential privacy
+def dp(proto, epsilon=10):
+    if epsilon == 0:
+        return proto
+    # proto.shape = (feature_dim, number of samples in this label)
+    # return proto (feature_dim, sample_num)
+    # add noise to the prototype
+    device = proto.device
+    noise = torch.normal(0, epsilon, proto.shape)
+    noise = noise.to(device)
+    proto = proto + noise
+    return proto

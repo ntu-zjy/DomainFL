@@ -301,7 +301,7 @@ def run(args):
             test_time = time.time() - start_time
             print(f'Round {r} test time cost: {test_time:.2f}s')
             total_test_time += test_time
-            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -333,6 +333,9 @@ if __name__ == "__main__":
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
     parser.add_argument('-rw','--regularization_weight', type=float, default=0, help='Regularization weight')
     parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
+    parser.add_argument('-sra','--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
+    parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster)')
+    parser.add_argument('-dp','--diff_privacy', type=float, default=0, help='Diff privacy scale')
 
     args = parser.parse_args()
 
@@ -342,7 +345,7 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 
