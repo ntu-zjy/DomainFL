@@ -269,9 +269,7 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, e
                 prototype = torch.vstack((prototype,new))
 
             # sample some of the prototypes
-            if sample_ratio >= 1:
-                pass
-            elif sample_method == 'average':
+            if sample_method == 'average':
                 prototype = average_sample(prototype.T).T
             elif sample_method == 'random':
                 prototype = random_sample(prototype.T, sample_ratio).T
