@@ -3,7 +3,7 @@
 
 bs=32
 algo=("local" "zeroshot" "fedavg" "fedprox" "fedditto" "fedmoon" "fedproto" "fedavgDBE")
-ss=100
+ss=50
 gr=200
 did=0
 ien="ViT-B-32"
