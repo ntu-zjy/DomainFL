@@ -65,38 +65,6 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     # print('training_data:', training_data)
     return training_data
 
-# def generate_protos_training_data(uploaded_protos, batchsize=10):
-#     classes = uploaded_protos[0].keys()
-#     protos = []
-#     labels = []
-#     for proto in uploaded_protos:
-#         for c in classes:
-#             protos.append(proto[c])
-#             labels.append(c)
-
-#     # generate batched data
-#     protos = torch.stack(protos)
-#     labels = torch.tensor(labels, dtype=torch.long)
-#     # print('protos:', protos.shape)
-#     protos = protos.view(-1, batchsize, protos.shape[-1])
-#     # print('protos:', protos.shape)
-#     labels = labels.view(-1, batchsize)
-#     protos = protos.to(torch.float32)
-#     # shuffle the training data
-#     for i, (proto, label) in enumerate(zip(protos, labels)):
-#         idx = torch.randperm(proto.shape[0])
-#         proto = proto[idx, :].view(proto.shape)
-#         label = label[idx].view(label.shape)
-#         protos[i] = proto
-#         labels[i] = label
-
-#     # generate training data
-#     training_data = []
-#     for i in range(protos.shape[0]):
-#         training_data.append((protos[i], labels[i]))
-#     # print('training_data:', training_data)
-#     return training_data
-
 def send_adaptive_global_adapter(global_adapter, clientObjs):
     for client in clientObjs:
         client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
@@ -145,6 +113,10 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
         print(f'server epoch {convergence_epochs} loss std: {np.std(losses[-num_losses:])}')
         if np.std(losses[-num_losses:]) < threshold and len(losses) > num_losses:
             print(f'convergence at epoch {convergence_epochs}')
+            break
+
+        if convergence_epochs >= server.max_epochs:
+            print(f'exceed max epochs {server.max_epochs}')
             break
 
     return server.image_encoder.global_adapter
@@ -279,7 +251,7 @@ def run(args):
         client_acc.append(accs)
 
     test_time = time.time() - start_time
-    print(f'Round {r} test time cost: {test_time:.2f}s')
+    print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
     with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
         json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
