@@ -108,8 +108,6 @@ def run(args):
         print(f'Round {r} train time cost: {train_time:.2f}s')
         total_train_time += train_time
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
     parser.add_argument('-d','--dataset', type=str, default='domainnet', help='Dataset name')
