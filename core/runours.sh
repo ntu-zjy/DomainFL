@@ -3,7 +3,7 @@
 
 bs=32
 algo="ours"
-ss=50
+ss=100
 gr=200
 did=0
 ien="ViT-B-32"
