@@ -253,7 +253,7 @@ def run(args):
     test_time = time.time() - start_time
     print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
-    with open(f'./results/ours_dp/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_dp{args.diff_privacy}.json', 'a+') as f:
+    with open(f'./results/ours_dp/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_dps{args.diff_privacy_scale}_dpp{args.diff_privacy_perturbation}.json', 'a+') as f:
         json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
         f.write('\n')
 
@@ -279,7 +279,8 @@ if __name__ == "__main__":
     parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
     parser.add_argument('-sra','--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
     parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster)')
-    parser.add_argument('-dp','--diff_privacy', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-dps','--diff_privacy_scale', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-dpp','--diff_privacy_perturbation', type=float, default=0, help='Diff privacy perturbation')
 
     args = parser.parse_args()
 
@@ -288,8 +289,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
+    os.makedirs(f'./results/ours_dp/', exist_ok=True)
+    with open(f'./results/ours_dp/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_dps{args.diff_privacy_scale}_dpp{args.diff_privacy_perturbation}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

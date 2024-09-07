@@ -45,7 +45,6 @@ class Client(nn.Module):
         self.kdw = args.kd_loss_weight
         self.sra = args.sample_ratio
         self.sram = args.sample_ratio_method
-        self.dp = args.diff_privacy
 
         # for auto test data split
         self.domain_label = None
@@ -188,7 +187,7 @@ class Client(nn.Module):
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
 
-            self.protos = agg_func(protos, sample_ratio=self.sra, sample_method=self.sram, epsilon=self.dp)
+            self.protos = agg_func(protos, sample_ratio=self.sra, sample_method=self.sram)
 
             self.scheduler.step()
 
@@ -256,7 +255,7 @@ class Client(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
-def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, epsilon=100):
+def agg_func(protos, sample_ratio=0.9, sample_method='cluster'):
     """
     use svd to aggregate the prototypes
     """
@@ -275,29 +274,9 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, e
                 prototype = random_sample(prototype.T, sample_ratio).T
             elif sample_method == 'cluster':
                 prototype = cluster_sample(prototype.T, sample_ratio).T
-
-            # if svd_ratio >= 1:
-            #     pass
-            # else:
-            #     # use svd decomposition to compress the prototype
-            #     U, S, Vt = torch.linalg.svd(prototype, full_matrices=False)
-
-            #     # print("S.shape:", S.shape)
-            #     k = math.ceil(S.shape[0] * svd_ratio)
-            #     Uk = U[:, :k]
-            #     Sk = torch.diag(S[:k])
-            #     Vtk = Vt[:k, :]
-            #     prototype = Uk @ Sk @ Vtk
-
-            # differential privacy
-            prototype = dp(prototype, epsilon=epsilon)
-            protos[label] = prototype
         else:
             prototype = proto_list[0]
-
-            # differential privacy
-            prototype = dp(prototype, epsilon=epsilon)
-            protos[label] = prototype
+        protos[label] = prototype
     # protos[label] = prototype (embedding_nums, feature_dim)
     return protos
 
@@ -335,18 +314,4 @@ def cluster_sample(proto, sample_ratio=0.1):
     proto = cluster_center.T
     proto = torch.tensor(proto).to(device)
     proto = proto.to(torch.float32)
-    return proto
-
-
-# differential privacy
-def dp(proto, epsilon=10):
-    if epsilon == 0:
-        return proto
-    # proto.shape = (feature_dim, number of samples in this label)
-    # return proto (feature_dim, sample_num)
-    # add noise to the prototype
-    device = proto.device
-    noise = torch.normal(0, epsilon, proto.shape)
-    noise = noise.to(device)
-    proto = proto + noise
     return proto

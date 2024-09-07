@@ -25,6 +25,8 @@ class Client(nn.Module):
         self.batch_size = args.batch_size
         self.warm_up = args.warm_up
         self.lr = args.lr
+        self.dps = args.diff_privacy_scale
+        self.dpp = args.diff_privacy_perturbation
         self.data_name = data_name
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
@@ -45,7 +47,6 @@ class Client(nn.Module):
         self.kdw = args.kd_loss_weight
         self.sra = args.sample_ratio
         self.sram = args.sample_ratio_method
-        self.dp = args.diff_privacy
 
         # for auto test data split
         self.domain_label = None
@@ -188,7 +189,7 @@ class Client(nn.Module):
                     pbar.set_description\
                         (f'Client {self.id}: [{self.data_name}], Local Epoch: {epoch}, Iter:{i}, Loss: {round(loss.item(), 5)}, lr: {lr}')
 
-            self.protos = agg_func(protos, sample_ratio=self.sra, sample_method=self.sram, epsilon=self.dp)
+            self.protos = agg_func(protos, sample_ratio=self.sra, sample_method=self.sram, dps=self.dps, dpp=self.dpp)
 
             self.scheduler.step()
 
@@ -256,7 +257,7 @@ class Client(nn.Module):
         with open(f"{dir}/config.json", 'w+') as f:
             json.dump(config, f)
 
-def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, epsilon=100):
+def agg_func(protos, sample_ratio=0.9, sample_method='cluster', dps=0, dpp=0):
     """
     use svd to aggregate the prototypes
     """
@@ -290,13 +291,13 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster', svd_ratio=0.9, e
             #     prototype = Uk @ Sk @ Vtk
 
             # differential privacy
-            prototype = dp(prototype, epsilon=epsilon)
+            prototype = dp(prototype, diff_privacy_scale=dps, diff_privacy_perturbation=dpp)
             protos[label] = prototype
         else:
             prototype = proto_list[0]
 
             # differential privacy
-            prototype = dp(prototype, epsilon=epsilon)
+            prototype = dp(prototype, diff_privacy_scale=dps, diff_privacy_perturbation=dpp)
             protos[label] = prototype
     # protos[label] = prototype (embedding_nums, feature_dim)
     return protos
@@ -339,14 +340,13 @@ def cluster_sample(proto, sample_ratio=0.1):
 
 
 # differential privacy
-def dp(proto, epsilon=10):
-    if epsilon == 0:
-        return proto
+def dp(proto, diff_privacy_scale=0, diff_privacy_perturbation=0):
     # proto.shape = (feature_dim, number of samples in this label)
     # return proto (feature_dim, sample_num)
     # add noise to the prototype
     device = proto.device
-    noise = torch.normal(0, epsilon, proto.shape)
+    noise = torch.normal(0, diff_privacy_scale, proto.shape)
+    noise = noise * diff_privacy_perturbation
     noise = noise.to(device)
     proto = proto + noise
     return proto
