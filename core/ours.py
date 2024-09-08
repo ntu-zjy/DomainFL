@@ -16,10 +16,12 @@ from utils.json_utils import generate_json_config
 import warnings
 import numpy as np
 from collections import defaultdict
+
 warnings.simplefilter("ignore")
 
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
+
 
 def generate_protos_training_data(uploaded_protos, batchsize=10):
     classes = uploaded_protos[0].keys()
@@ -32,7 +34,7 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
             protos_class_c = proto[c]
             protos.append(protos_class_c)
             # labels.append(c)
-            labels.extend([c]*protos_class_c.shape[0])
+            labels.extend([c] * protos_class_c.shape[0])
 
     # generate batched data
     protos = torch.vstack(protos)
@@ -65,16 +67,19 @@ def generate_protos_training_data(uploaded_protos, batchsize=10):
     # print('training_data:', training_data)
     return training_data
 
+
 def send_adaptive_global_adapter(global_adapter, clientObjs):
     for client in clientObjs:
         client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
         client.model.base.adapter.load_state_dict(global_adapter.state_dict())
     return clientObjs
 
+
 def send_global_head(global_cls_head, clientObjs):
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
     return clientObjs
+
 
 def server_adative_training(training_data, server, threshold=0.001, num_losses=20):
     losses = []
@@ -82,6 +87,7 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
     server.global_cls_head.train()
     server.freeze_except_global_adapter()
     optimizer = torch.optim.AdamW(server.image_encoder.global_adapter.parameters(), lr=server.learning_rate)
+
     def lr_lambda(current_epoch):
         if current_epoch < server.warm_up:
             return (float(current_epoch) + 1) / float(max(1, server.warm_up))
@@ -121,6 +127,7 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
 
     return server.image_encoder.global_adapter
 
+
 def receive_protos(clients):
     uploaded_ids = []
     uploaded_protos = []
@@ -128,6 +135,7 @@ def receive_protos(clients):
         uploaded_ids.append(client.id)
         uploaded_protos.append(client.protos)
     return uploaded_protos
+
 
 def proto_aggregation(local_protos_list):
     agg_protos_label = defaultdict(list)
@@ -146,6 +154,7 @@ def proto_aggregation(local_protos_list):
 
     return agg_protos_label
 
+
 def calculate_fedts_weights(clients):
     # every client use the same weight
     weights = [1/len(clients) for c in clients]
@@ -162,6 +171,7 @@ def proto_initialization(clientObjs, server):
     server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
     return clientObjs, server
 
+
 def calculate_fedavg_weights(clients):
     total_train_num = 0
     num_list = []
@@ -171,6 +181,7 @@ def calculate_fedavg_weights(clients):
         num_list.append(train_num)
     weights = [num/total_train_num for num in num_list]
     return weights
+
 
 def fedavg(weights, clientObjs, server):
     print("FedAvg... with weights: ", weights)
