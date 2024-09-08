@@ -196,6 +196,7 @@ def fedavg(weights, clientObjs, server):
 
     return clientObjs, server
 
+
 def run(args):
     # initialize server
     server = Server(args)
