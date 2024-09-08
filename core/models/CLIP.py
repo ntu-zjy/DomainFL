@@ -1,6 +1,7 @@
 import torch
 import copy
 import open_clip
+import clip
 import torch.nn as nn
 
 # https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv
