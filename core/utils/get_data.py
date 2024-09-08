@@ -12,10 +12,10 @@ from adaptiope.datasets_utils.product import product
 from adaptiope.datasets_utils.reallife import reallife
 from adaptiope.datasets_utils.synthetic import synthetic
 
-from PACS.datasets_utils.art_painting import ArtPainting
-from PACS.datasets_utils.cartoon import Cartoon
-from PACS.datasets_utils.photo import Photo
-from PACS.datasets_utils.sketch import Sketch
+from PACS.art_painting import ArtPainting
+from PACS.cartoon import Cartoon
+from PACS.photo import Photo
+from PACS.sketchd import SketchD
 
 
 domainnet = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph'] # domainnet

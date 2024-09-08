@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from .PACSBase import BasePACSDataset
 
-class Sketch:
+class SketchD:
     def __init__(self, train_preprocess, val_preprocess, location=os.path.expanduser('~/data/PACS'), batch_size=128, num_workers=0):
         self.train_dataset = BasePACSDataset(location, domain='sketch', split='train', transform=train_preprocess)
         self.test_dataset = BasePACSDataset(location, domain='sketch', split='test', transform=val_preprocess)
