@@ -12,8 +12,15 @@ from adaptiope.datasets_utils.product import product
 from adaptiope.datasets_utils.reallife import reallife
 from adaptiope.datasets_utils.synthetic import synthetic
 
+from PACS.datasets_utils.art_painting import ArtPainting
+from PACS.datasets_utils.cartoon import Cartoon
+from PACS.datasets_utils.photo import Photo
+from PACS.datasets_utils.sketch import Sketch
+
+
 domainnet = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph'] # domainnet
 adaptiope = ['product', 'reallife', 'synthetic'] # adaptiope
+PACS = ['Photo', 'Sketch', 'ArtPainting', 'Cartoon']
 random.seed(1)
 np.random.seed(1)
 

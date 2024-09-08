@@ -46,6 +46,7 @@ def run(args):
     for param in mean_cls_head.parameters():
         param.data /= len(cls_heads)
     conds = concat_datasets(cds)
+
     print("define the client...")
     client = Client(args, id, conds.train_dataset, conds.test_dataset, conds.val_dataset, conds.train_loader, conds.test_loader, conds.val_loader, conds.classnames, init_image_encoder, mean_cls_head, data_name)
 
