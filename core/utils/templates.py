@@ -392,6 +392,46 @@ synthetic_template = [
     lambda c: f'a digitally created template of a {c} with varying viewpoints.',
 ]
 
+photo_template = [
+    lambda c: f'a photo of a {c}.',
+    lambda c: f'a realistic photo of a {c}.',
+    lambda c: f'a high-resolution image of a {c}.',
+    lambda c: f'a natural photo of a {c}.',
+    lambda c: f'a candid shot of a {c}.',
+    lambda c: f'a photo of a {c} in the wild.',
+    lambda c: f'a clear image of a {c}.',
+]
+
+art_painting_template = [
+    lambda c: f'an art painting of a {c}.',
+    lambda c: f'a classical painting of a {c}.',
+    lambda c: f'an impressionist painting of a {c}.',
+    lambda c: f'a {c} depicted in a painting.',
+    lambda c: f'a painting featuring a {c}.',
+    lambda c: f'an artistic rendering of a {c}.',
+    lambda c: f'a colorful painting of a {c}.',
+]
+
+cartoon_template = [
+    lambda c: f'a cartoon of a {c}.',
+    lambda c: f'a stylized cartoon image of a {c}.',
+    lambda c: f'an animated depiction of a {c}.',
+    lambda c: f'a cartoon character resembling a {c}.',
+    lambda c: f'a colorful cartoon of a {c}.',
+    lambda c: f'a cartoon drawing of a {c}.',
+    lambda c: f'a comic-style illustration of a {c}.',
+]
+
+sketchp_template = [
+    lambda c: f'a sketch of a {c}.',
+    lambda c: f'a hand-drawn sketch of a {c}.',
+    lambda c: f'a pencil sketch of a {c}.',
+    lambda c: f'a black and white sketch of a {c}.',
+    lambda c: f'a rough sketch of a {c}.',
+    lambda c: f'an artistic sketch of a {c}.',
+    lambda c: f'a simple line drawing of a {c}.',
+]
+
 
 dataset_to_template = {
     'Cars': cars_template,
@@ -424,6 +464,10 @@ dataset_to_template = {
     'product': product_template,
     'reallife': reallife_template,
     'synthetic': synthetic_template,
+    'Photo': photo_template,
+    'SketchP': sketchp_template,
+    'ArtPainting':art_painting_template,
+    'Cartoon':cartoon_template,
 }
 
 
