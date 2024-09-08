@@ -7,7 +7,7 @@ import torch
 import random
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet, adaptiope
+from utils.get_data import domainnet, adaptiope, PACS
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
@@ -196,6 +196,7 @@ def fedavg(weights, clientObjs, server):
 
     return clientObjs, server
 
+
 def run(args):
     # initialize server
     server = Server(args)
@@ -259,7 +260,7 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
-    parser.add_argument('-d','--dataset', type=str, default='domainnet', help='Dataset name')
+    parser.add_argument('-d','--dataset', type=str, default='PACS', help='Dataset name')
     parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
     parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
     parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')

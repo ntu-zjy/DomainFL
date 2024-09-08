@@ -1,0 +1,3 @@
+{"base_model": "CLIP", "dataset": "office", "subset_size": 100, "image_encoder_name": "RN50", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 5, "seed": 1}
+{"round": 0, "acc": [[53.8636, 81.412, 82.969, 72.8385], [52.3182, 82.0375, 82.5592, 70.6362], [51.0455, 81.7248, 82.7869, 72.0228], [50.6364, 79.1332, 82.1949, 71.8597]], "total_test_time": 0, "total_train_time": 0}
+{"round": 10, "acc": [[48.9545, 38.9187, 39.5719, 29.0375], [30.0, 82.395, 57.5592, 39.0701], [33.7727, 66.9348, 75.0, 57.5856], [35.1364, 65.5496, 69.2623, 68.0261]], "total_test_time": 1259.8287272453308, "total_train_time": 2676.168794631958}
