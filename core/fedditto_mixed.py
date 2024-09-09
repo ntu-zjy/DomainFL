@@ -9,7 +9,7 @@ from utils.get_data import domainnet, adaptiope
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val, build_subset_mixed, concat_datasets
 from utils.server import Server
-from utils.client import Client
+from utils.clientditto import ClientDitto
 from utils.json_utils import generate_json_config
 import warnings
 warnings.simplefilter("ignore")
@@ -57,7 +57,6 @@ def send_global_head(global_cls_head, clientObjs):
         client.model.head.load_state_dict(global_cls_head.state_dict())
     return clientObjs
 
-
 def run(args):
     # initialize server
     server = Server(args)
@@ -89,7 +88,7 @@ def run(args):
         cd = concat_datasets([sub1, sub2])
         # cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
-        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        client = ClientDitto(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
         cls_heads.append(cls_head)
         del cd
@@ -121,13 +120,12 @@ def run(args):
             counter = 0
             print("save finetuned local models")
             for client in clients:
-                client.save_adapter(args, algo='fedavg')
+                client.save_adapter(args, algo='fedditto')
         else:
             counter += 1
             if counter >= patience:
                 print(f'Early stopping at round {r}')
                 early_stop = True
-
 
         print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
 
@@ -138,18 +136,20 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedavg_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'a+') as f:
+            with open(f'./results/fedditto_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
             if early_stop:
                 break
+
         test_time = time.time() - start_time
         print(f'Round {r} test time cost: {test_time:.2f}s')
 
         start_time = time.time()
         # fine tune clients
         for id in range(len(clients)):
+            clients[id].p_fine_tune()
             clients[id].fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
@@ -183,6 +183,8 @@ if __name__ == "__main__":
     parser.add_argument('-eval','--eval_interval', type=int, default=200, help='Log interval')
     parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
     parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
+    parser.add_argument('-mu', '--mu', type=float, default=2, help='Mu')
+    parser.add_argument('-pls', "--plocal_epochs", type=int, default=1)
     parser.add_argument('-mr','--mixed_ratio', type=float, default=0.5, help='Mix ratio')
 
     args = parser.parse_args()
@@ -192,8 +194,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg_mixed/', exist_ok=True)
-    with open(f'./results/fedavg_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'w+') as f:
+    os.makedirs(f'./results/fedditto_mixed/', exist_ok=True)
+    with open(f'./results/fedditto_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

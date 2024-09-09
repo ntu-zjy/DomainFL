@@ -224,8 +224,7 @@ def run(args):
     clients_subsets = []
     for id, data_name in enumerate(dataset):
         cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
-        cds = build_subset_mixed(cds, args.subset_size, ratios=[0.5])
-        # 没划分
+        cds = build_subset_mixed(cds, args.subset_size, ratios=[args.mixed_ratio])
         new_cds = []
         for cd in cds:
             new_cd = split_train_and_val(cd)
@@ -280,7 +279,7 @@ def run(args):
     test_time = time.time() - start_time
     print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
-    with open(f'./results/ours_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
+    with open(f'./results/ours_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_mixed{args.mixed_ratio}.json', 'a+') as f:
         json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
         f.write('\n')
 
@@ -307,6 +306,7 @@ if __name__ == "__main__":
     parser.add_argument('-sra','--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
     parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster)')
     parser.add_argument('-dp','--diff_privacy', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-mr','--mixed_ratio', type=float, default=0.5, help='Mix ratio')
 
     args = parser.parse_args()
 
@@ -316,7 +316,7 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/ours_mixed/', exist_ok=True)
-    with open(f'./results/ours_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
+    with open(f'./results/ours_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_mixed{args.mixed_ratio}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 
