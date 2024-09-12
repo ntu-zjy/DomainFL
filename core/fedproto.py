@@ -5,7 +5,7 @@ import time
 import torch
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet, adaptiope
+from utils.get_data import domainnet, adaptiope, PACS
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
