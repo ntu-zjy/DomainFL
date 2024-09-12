@@ -3,12 +3,12 @@
 
 bs=32
 algo="ours"
-ss=100
+ss=150
 gr=200
 did=0
 ien="ViT-B-32"
 data=domainnet
-sram=("random")
+sram=("cluster" "random")
 ratio=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9)
 # ratio=(0.5 0.6 0.7 0.8 0.9)
 
