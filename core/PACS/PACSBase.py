@@ -1,6 +1,9 @@
 import os
 import requests
+from zipfile import ZipFile
+from io import BytesIO
 from torch.utils.data import Dataset
+from torchvision.datasets.utils import download_and_extract_archive
 import pandas as pd
 from PIL import Image
 
@@ -32,8 +35,11 @@ def download_github_folder(repo_url, folder_path, local_dir):
                 print(f"Downloading {new_folder_path}...")
 
                 new_local_dir = local_dir + f"/{content['name']}"
+                # if not os.path.exists(new_local_dir):
+                #     os.makedirs(new_local_dir)
+                #     print(f'make{new_local_dir}')
                 download_github_folder(repo_url, new_folder_path, new_local_dir)
-        return True
+                return True
     else:
         print(f"Failed to fetch contents from {api_url}. Status code: {response.status_code}")
         return False
@@ -42,15 +48,27 @@ def download_github_folder(repo_url, folder_path, local_dir):
 PACS_url = 'https://github.com/MachineLearning2020/Homework3-PACS/contents'
 
 
-class BasePACSDataset(Dataset):
+
+
+
+class CustomDomainDataset(Dataset):
     def __init__(self, root_dir, domain, split='train', transform=None):
         self.root_dir = root_dir
         self.transform = transform
         self.domain = domain
         self.split = split
-
-        # Assumes data is organized as /PACS/domain/class/image.jpg
-        self.domain_dir = root_dir + f"/{domain}"
+        self.annotations_url = PACS_url
+        self.domain_dir = os.path.join(root_dir, domain)
+        if not os.path.exists(self.root_dir):
+            print("数据文件不存在，开始下载和预处理...")
+            os.makedirs(self.domain_dir, exist_ok=True)
+            folder_path = 'PACS'
+            # local_dir = './PACS'
+            success = download_github_folder(self.annotations_url, folder_path, root_dir)
+            if not success:
+                raise RuntimeError("数据下载或预处理失败")
+        else:
+            print("数据文件已存在，跳过下载和预处理步骤")
         self.img_labels = self._load_annotations()
 
     def _load_annotations(self):
@@ -82,9 +100,8 @@ class BasePACSDataset(Dataset):
             image = self.transform(image)
         return image, label
 
-
-if __name__ == 'main':
+if __name__ == '__main__':
     # 示例用法
-    root_dir = "'~/data/PACS"
+    root_dir = "./PACS"
     domain = "cartoon"  # 例如，选择一个域
-    dataset = BasePACSDataset(root_dir=root_dir, domain=domain, transform=None)
+    dataset = CustomDomainDataset(root_dir=root_dir, domain=domain, transform=None)
