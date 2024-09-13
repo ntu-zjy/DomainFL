@@ -1,0 +1,2 @@
+{"base_model": "CLIP", "dataset": "PACS", "subset_size": 7, "image_encoder_name": "ViT-B-32", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 10, "seed": 1}
+{"round": 0, "acc": [[100.0, 98.1233, 99.5117, 99.7867], [100.0, 98.1233, 99.5117, 99.7867], [100.0, 98.1233, 99.5117, 99.7867], [100.0, 98.1233, 99.5117, 99.7867]], "total_test_time": 31.259435653686523, "total_train_time": 3.0207626819610596}

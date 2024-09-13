@@ -7,7 +7,7 @@ import argparse
 from models.CLIP import *
 from utils.get_data import domainnet, adaptiope
 from utils.get_data import get_data
-from utils.data_utils import build_subset, split_train_and_val
+from utils.data_utils import build_subset, split_train_and_val, build_subset_mixed, concat_datasets
 from utils.server import Server
 from utils.clientprox import ClientProx
 from utils.json_utils import generate_json_config
@@ -71,11 +71,25 @@ def run(args):
     # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
+    clients_ids = [[(0, 1), (1, 0)], [(1, 1), (2, 0)], [(2, 1), (3, 0)], [(3, 1), (4, 0)], [(4, 1), (5, 0)],
+                       [(5, 1), (0, 0)]]
+    clients_subsets = []
     for id, data_name in enumerate(dataset):
+        cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
+        cds = build_subset_mixed(cds, args.subset_size, ratios=[args.mixed_ratio])
+        new_cds = []
+        for cd in cds:
+            new_cd = split_train_and_val(cd)
+            new_cds.append(new_cd)
+        clients_subsets.append(new_cds)
+
+    for ist in range(len(clients_subsets)):
+        data_name = dataset[ist]
+        sub1 = clients_subsets[clients_ids[ist][0][0]][clients_ids[ist][0][1]]
+        sub2 = clients_subsets[clients_ids[ist][1][0]][clients_ids[ist][1][1]]
         init_image_encoder = copy.deepcopy(server.image_encoder)
-        cd = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size)
-        cd = split_train_and_val(cd)
+        cd = concat_datasets([sub1, sub2])
+        # cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
         client = ClientProx(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
@@ -130,7 +144,7 @@ def run(args):
                 accs = client.test_on_all_clients(clients)
                 client_acc.append(accs)
 
-            with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+            with open(f'./results/fedprox_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'a+') as f:
                 json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
                 f.write('\n')
 
@@ -174,6 +188,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-mu','--mu', type=float, default=5, help='Mu for fedprox')
 
+    parser.add_argument('-mr','--mixed_ratio', type=float, default=0.5, help='Mix ratio')
     args = parser.parse_args()
 
     if args.device == 'cuda':
@@ -181,8 +196,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedprox/', exist_ok=True)
-    with open(f'./results/fedprox/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./results/fedprox_mixed/', exist_ok=True)
+    with open(f'./results/fedprox_mixed/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_mixed{args.mixed_ratio}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

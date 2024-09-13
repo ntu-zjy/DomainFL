@@ -1,0 +1,2 @@
+{"base_model": "CLIP", "dataset": "PACS", "subset_size": 7, "image_encoder_name": "convnext_base", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 10, "seed": 1}
+{"round": 0, "acc": [[99.7605, 96.7828, 98.584, 99.0614], [99.7605, 96.7828, 98.584, 99.0614], [99.7605, 96.7828, 98.584, 99.0614], [99.7605, 96.7828, 98.584, 99.0614]], "total_test_time": 96.01463270187378, "total_train_time": 2.2296347618103027}
