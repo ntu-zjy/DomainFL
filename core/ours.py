@@ -278,7 +278,7 @@ if __name__ == "__main__":
     parser.add_argument('-rw','--regularization_weight', type=float, default=0, help='Regularization weight')
     parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
     parser.add_argument('-sra','--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
-    parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster)')
+    parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster, mixed)')
     parser.add_argument('-dp','--diff_privacy', type=float, default=0, help='Diff privacy scale')
 
     args = parser.parse_args()

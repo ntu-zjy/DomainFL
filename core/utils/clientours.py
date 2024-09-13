@@ -274,6 +274,8 @@ def agg_func(protos, sample_ratio=0.9, sample_method='cluster'):
                 prototype = random_sample(prototype.T, sample_ratio).T
             elif sample_method == 'cluster':
                 prototype = cluster_sample(prototype.T, sample_ratio).T
+            elif sample_method == 'mixed':
+                prototype = mixed_sample(prototype.T, sample_ratio).T
         else:
             prototype = proto_list[0]
         protos[label] = prototype
@@ -314,4 +316,18 @@ def cluster_sample(proto, sample_ratio=0.1):
     proto = cluster_center.T
     proto = torch.tensor(proto).to(device)
     proto = proto.to(torch.float32)
+    return proto
+
+# mixed sample is the combination of random_sample and cluster_sample, average_sample
+def mixed_sample(proto, sample_ratio=0.1):
+    half_sample_ratio = sample_ratio / 2
+    avg_proto = average_sample(proto)
+    random_proto = random_sample(proto, half_sample_ratio)
+    cluster_proto = cluster_sample(proto, half_sample_ratio)
+
+    # print("avg_proto.shape:", avg_proto.shape)
+    # print("random_proto.shape:", random_proto.shape)
+    # print("cluster_proto.shape:", cluster_proto.shape)
+    proto = torch.hstack((avg_proto, random_proto, cluster_proto))
+    # print("proto.shape:", proto.shape)
     return proto
