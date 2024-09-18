@@ -29,8 +29,22 @@ def calculate_fedavg_weights(clients):
     # weights = [1/len(clients) for c in clients]
     return weights
 
+def get_model_parameters_size(model):
+    """Calculate the size of the model parameters in bytes."""
+    parameters_size = 0
+    for param_tensor in model.state_dict():
+        parameters_size += model.state_dict()[param_tensor].numel() * model.state_dict()[param_tensor].element_size()
+    return parameters_size
+
 def fedavg(weights, clientObjs, server):
     print("FedAvg... with weights: ", weights)
+
+    # Calculate communication cost for sending and receiving adapters
+    adapter_size = get_model_parameters_size(clientObjs[0].model.base.adapter)
+    total_communication_cost = len(clientObjs) * adapter_size * 2  # Sending and receiving
+
+    print(f"Communication cost for this round: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
 
@@ -47,18 +61,24 @@ def fedavg(weights, clientObjs, server):
     server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
 
     # send the global adapter back to the clients
-    # param will be covered as global param
     for id in range(len(clientObjs)):
         for param, global_param, global_param_temp in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters(), clientObjs[id].model.base.global_adapter.parameters()):
             param.data = global_param.data.clone()
             global_param_temp.data = global_param.data.clone()
 
-    return clientObjs, server
+    return clientObjs, server, total_communication_cost
 
 def send_global_head(global_cls_head, clientObjs):
+    # Calculate communication cost for sending the global classification head
+    head_size = get_model_parameters_size(global_cls_head)
+    total_communication_cost = head_size * len(clientObjs)  # Sending to each client
+
+    print(f"Communication cost for sending global head: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
-    return clientObjs
+
+    return clientObjs, total_communication_cost
 
 def run(args):
     # initialize server
@@ -68,7 +88,6 @@ def run(args):
     dataset = globals()[args.dataset]
 
     # initialize clients
-    # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
     for id, data_name in enumerate(dataset):
@@ -82,15 +101,17 @@ def run(args):
         cls_heads.append(cls_head)
         del cd
 
+    # initialize communication cost
+    communication_cost = 0
+    communication_cost_head = 0
+
     # generate global cls head
     server.generate_global_cls_head(cls_heads)
-    clients = send_global_head(server.global_cls_head, clients)
+    clients, commu_cost_head = send_global_head(server.global_cls_head, clients)
+    communication_cost_head += commu_cost_head
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
-    print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
+    print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad])
 
-    # train and test clients
     total_test_time, total_train_time = 0, 0
 
     patience = 10
@@ -99,7 +120,6 @@ def run(args):
     early_stop = False
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
-        # cal val loss
         val_loss = 0
         for id in range(len(clients)):
             val_loss += clients[id].cal_val_loss()
@@ -118,10 +138,10 @@ def run(args):
 
         print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
 
-        # after fine tuning clients, we need to aggregate the adapters
         weights = calculate_fedavg_weights(clients)
-        # fedavg algorithm
-        clients, server = fedavg(weights, clients, server)
+        clients, server, commu_cost = fedavg(weights, clients, server)
+
+        communication_cost += commu_cost
 
         start_time = time.time()
         if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
@@ -141,7 +161,6 @@ def run(args):
         print(f'Round {r} test time cost: {test_time:.2f}s')
 
         start_time = time.time()
-        # fine tune clients
         for id in range(len(clients)):
             clients[id].fine_tune()
         train_time = time.time() - start_time
@@ -150,6 +169,8 @@ def run(args):
         total_test_time += test_time
         total_train_time += train_time
 
+    print(f"Communication cost of all: {communication_cost / (1024 ** 2):.2f} MB")
+    print(f"Communication cost of all add Head: {(communication_cost + communication_cost_head)/ (1024 ** 2):.2f} MB")
     total_time_cost = total_test_time + total_train_time
     print(f'Total time cost: {total_time_cost:.2f}s')
 

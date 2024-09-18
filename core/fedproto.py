@@ -18,10 +18,29 @@ warnings.simplefilter("ignore")
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
+def get_protos_size(protos):
+    """
+    Calculate the total size of the prototypes in bytes.
+    Args:
+        protos (dict): A dictionary where keys are labels and values are prototype tensors.
+    Returns:
+        int: Total size of the prototypes in bytes.
+    """
+    total_size = 0
+    for label, proto in protos.items():
+        total_size += proto.numel() * proto.element_size()
+    return total_size
+
 def send_protos(global_protos, clients):
+    # Calculate communication cost for sending prototypes
+    proto_size = sum(get_protos_size(proto) for proto in global_protos.values())
+    total_communication_cost = proto_size * len(clients)
+
+    print(f"Communication cost for sending prototypes: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     for client in clients:
         client.set_protos(global_protos)
-    return clients
+    return clients, total_communication_cost
 
 def receive_protos(clients):
     uploaded_ids = []
@@ -61,14 +80,19 @@ def calculate_fedavg_weights(clients):
 def fedproto(clientObjs):
     uploaded_protos = receive_protos(clientObjs)
     global_protos = proto_aggregation(uploaded_protos)
-    clientObjs = send_protos(global_protos, clientObjs)
+    clientObjs, commu_cost = send_protos(global_protos, clientObjs)
 
-    return clientObjs
+    return clientObjs, commu_cost
 
 def send_global_head(global_cls_head, clientObjs):
+    head_size = get_protos_size(global_cls_head)
+    total_communication_cost = head_size * len(clientObjs)
+
+    print(f"Communication cost for sending global head: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
-    return clientObjs
+    return clientObjs, total_communication_cost
 
 def run(args):
     # initialize server
@@ -78,7 +102,6 @@ def run(args):
     dataset = globals()[args.dataset]
 
     # initialize clients
-    # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
     for id, data_name in enumerate(dataset):
@@ -92,16 +115,18 @@ def run(args):
         cls_heads.append(cls_head)
         del cd
 
+    # initialize communication cost
+    communication_cost = 0
+    communication_cost_head = 0
+
     # generate global cls head
     server.generate_global_cls_head(cls_heads)
-    clients = send_global_head(server.global_cls_head, clients)
+    clients, commu_cost_head = send_global_head(server.global_cls_head, clients)
+    communication_cost_head += commu_cost_head
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
-    print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
+    print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad])
 
     global_protos = [None for _ in range(args.subset_size)]
-    # train and test clients
     total_test_time, total_train_time = 0, 0
 
     patience = 10
@@ -110,7 +135,6 @@ def run(args):
     early_stop = False
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
-        # cal val loss
         val_loss = 0
         for id in range(len(clients)):
             val_loss += clients[id].cal_val_loss()
@@ -147,18 +171,19 @@ def run(args):
         print(f'Round {r} test time cost: {test_time:.2f}s')
 
         start_time = time.time()
-        # fine tune clients
         for id in range(len(clients)):
             clients[id].fine_tune()
         train_time = time.time() - start_time
         print(f'Round {r} train time cost: {train_time:.2f}s')
 
-        # fedavg algorithm
-        clients = fedproto(clients)
+        clients, commu_cost = fedproto(clients)
+        communication_cost += commu_cost
 
         total_test_time += test_time
         total_train_time += train_time
 
+    print(f"Communication cost of all: {communication_cost / (1024 ** 2):.2f} MB")
+    print(f"Communication cost of all add Head: {(communication_cost + communication_cost_head) / (1024 ** 2):.2f} MB")
     total_time_cost = total_test_time + total_train_time
     print(f'Total time cost: {total_time_cost:.2f}s')
 
