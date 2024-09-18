@@ -2,13 +2,13 @@
 # Define constants
 
 bs=32
-algo=("fedprox_mixed")
+algo=("local_mixed")
 ss=50
 gr=200
-did=1
+did=2
 ien="ViT-B-32"
 data=domainnet
-mixed_ratios=(0.3 0.4 0.5)
+mixed_ratios=(0.5)
 
 for mr in "${mixed_ratios[@]}"; do
     for a in "${algo[@]}"; do

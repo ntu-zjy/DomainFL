@@ -28,8 +28,7 @@ def run(args):
     # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
-    clients_ids = [[(0, 1), (1, 0)], [(1, 1), (2, 0)], [(2, 1), (3, 0)], [(3, 1), (4, 0)], [(4, 1), (5, 0)],
-                       [(5, 1), (0, 0)]]
+    clients_ids = [[(0, 1), (1, 0)], [(1, 1), (2, 0)], [(2, 1), (3, 0)], [(3, 1), (4, 0)], [(4, 1), (5, 0)],[(5, 1), (0, 0)]]
     clients_subsets = []
     for id, data_name in enumerate(dataset):
         cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
