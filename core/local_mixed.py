@@ -39,7 +39,7 @@ def run(args):
             new_cds.append(new_cd)
         clients_subsets.append(new_cds)
 
-    for ist in range(len(clients_subsets)):
+    for id, ist in enumerate(range(len(clients_subsets))):
         data_name = dataset[ist]
         sub1 = clients_subsets[clients_ids[ist][0][0]][clients_ids[ist][0][1]]
         sub2 = clients_subsets[clients_ids[ist][1][0]][clients_ids[ist][1][1]]
