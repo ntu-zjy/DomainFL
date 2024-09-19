@@ -21,60 +21,35 @@ warnings.simplefilter("ignore")
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
-def generate_protos_training_data(uploaded_protos, batchsize=10):
-    classes = uploaded_protos[0].keys()
-    protos = []
-    labels = []
-    # proto in every client
-    for proto in uploaded_protos:
-        # proto in every class
-        for c in classes:
-            protos_class_c = proto[c]
-            protos.append(protos_class_c)
-            # labels.append(c)
-            labels.extend([c]*protos_class_c.shape[0])
 
-    # generate batched data
-    protos = torch.vstack(protos)
-    labels = torch.tensor(labels, dtype=torch.long)
-    print('protos:', protos.shape)
-    print('labels:', labels.shape)
-    total_protos = protos.shape[0]
-
-    # shuffle the training data
-    perm = torch.randperm(total_protos)
-    protos = protos[perm, :]
-    labels = labels[perm]
-
-    # calculate the number of batches
-    max_full_batches = total_protos // batchsize
-    new_total_protos = max_full_batches * batchsize
-
-    # drop last
-    protos = protos[:new_total_protos]
-    labels = labels[:new_total_protos]
-
-
-    protos = protos.view(-1, batchsize, protos.shape[-1])
-    labels = labels.view(-1, batchsize)
-
-    # generate training data
-    training_data = []
-    for i in range(protos.shape[0]):
-        training_data.append((protos[i], labels[i]))
-    # print('training_data:', training_data)
-    return training_data
+def get_model_parameters_size(model):
+    parameters_size = 0
+    for param_tensor in model.state_dict():
+        parameters_size += model.state_dict()[param_tensor].numel() * model.state_dict()[param_tensor].element_size()
+    return parameters_size
 
 def send_adaptive_global_adapter(global_adapter, clientObjs):
+    # Calculate communication cost for sending the global adapter
+    adapter_size = get_model_parameters_size(global_adapter)
+    total_communication_cost = adapter_size * len(clientObjs)  # Sending to each client
+
+    print(f"Communication cost for sending global adapter: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     for client in clientObjs:
         client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
         client.model.base.adapter.load_state_dict(global_adapter.state_dict())
-    return clientObjs
+    return clientObjs, total_communication_cost
 
 def send_global_head(global_cls_head, clientObjs):
+    # Calculate communication cost for sending the global classification head
+    head_size = get_model_parameters_size(global_cls_head)
+    total_communication_cost = head_size * len(clientObjs)  # Sending to each client
+
+    print(f"Communication cost for sending global head: {total_communication_cost / (1024 ** 2):.2f} MB")
+
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
-    return clientObjs
+    return clientObjs, total_communication_cost
 
 def server_adative_training(training_data, server, threshold=0.001, num_losses=20):
     losses = []
@@ -152,50 +127,65 @@ def calculate_fedts_weights(clients):
     return weights
 
 
+def generate_protos_training_data(uploaded_protos, batchsize=10):
+    classes = uploaded_protos[0].keys()
+    protos = []
+    labels = []
+    # proto in every client
+    for proto in uploaded_protos:
+        # proto in every class
+        for c in classes:
+            protos_class_c = proto[c]
+            protos.append(protos_class_c)
+            labels.extend([c] * protos_class_c.shape[0])
+
+    # generate batched data
+    protos = torch.vstack(protos)
+    labels = torch.tensor(labels, dtype=torch.long)
+    print('protos:', protos.shape)
+    print('labels:', labels.shape)
+    total_protos = protos.shape[0]
+
+    # shuffle the training data
+    perm = torch.randperm(total_protos)
+    protos = protos[perm, :]
+    labels = labels[perm]
+
+    # calculate the number of batches
+    max_full_batches = total_protos // batchsize
+    new_total_protos = max_full_batches * batchsize
+
+    # drop last
+    protos = protos[:new_total_protos]
+    labels = labels[:new_total_protos]
+
+    protos = protos.view(-1, batchsize, protos.shape[-1])
+    labels = labels.view(-1, batchsize)
+
+    # calculate the size of the training data
+    protos_size = protos.numel() * protos.element_size()
+    labels_size = labels.numel() * labels.element_size()
+    total_size = protos_size + labels_size
+
+    # generate training data
+    training_data = []
+    for i in range(protos.shape[0]):
+        training_data.append((protos[i], labels[i]))
+
+    return training_data, total_size
+
 def proto_initialization(clientObjs, server):
     uploaded_protos = receive_protos(clientObjs)
-    # global_protos = proto_aggregation(uploaded_protos) # do not aggregate the protos !!!
-    training_data = generate_protos_training_data(uploaded_protos)
+    training_data, training_data_size = generate_protos_training_data(uploaded_protos)
     global_adapter = server_adative_training(training_data, server)
-    clientObjs = send_adaptive_global_adapter(global_adapter, clientObjs)
-    clientObjs = send_global_head(server.global_cls_head, clientObjs)
+    clientObjs, commu_cost_adapter = send_adaptive_global_adapter(global_adapter, clientObjs)
+    clientObjs, commu_cost_head = send_global_head(server.global_cls_head, clientObjs)
     server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
-    return clientObjs, server
 
-def calculate_fedavg_weights(clients):
-    total_train_num = 0
-    num_list = []
-    for c in clients:
-        train_num = len(c.train_dataloader) * c.batch_size
-        total_train_num += train_num
-        num_list.append(train_num)
-    weights = [num/total_train_num for num in num_list]
-    return weights
+    # Calculate the communication cost for sending the training data
+    print(f"Communication cost for sending training data: {training_data_size / (1024 ** 2):.2f} MB")
 
-def fedavg(weights, clientObjs, server):
-    print("FedAvg... with weights: ", weights)
-    # server receive the adapters from clients
-    adapters = [c.model.base.adapter for c in clientObjs]
-
-    # fedavg aggregation
-    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
-    for param in server_global_adapter.parameters():
-        param.data.zero_()
-
-    for adapter in adapters:
-        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
-            global_param.data += w * param.data.clone()
-    # set the global adapter to the server
-    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
-
-    # send the global adapter back to the clients
-    # param will be covered as global param
-    for id in range(len(clientObjs)):
-        for param, global_param in zip(clientObjs[id].model.base.adapter.parameters(), server_global_adapter.parameters()):
-            param.data = global_param.data.clone()
-
-    return clientObjs, server
-
+    return clientObjs, server, commu_cost_adapter + commu_cost_head + training_data_size
 
 def run(args):
     # initialize server
@@ -205,7 +195,6 @@ def run(args):
     dataset = globals()[args.dataset]
 
     # initialize clients
-    # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
     for id, data_name in enumerate(dataset):
@@ -222,21 +211,21 @@ def run(args):
     # generate global cls head
     server.generate_global_cls_head(cls_heads)
 
-    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
-    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
     print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
 
     # train and test clients
     total_test_time, total_train_time = 0, 0
+    total_communication_cost = 0
 
     # fine tune clients
     for id in range(len(clients)):
         clients[id].fine_tune(global_round=0)
 
     start_time = time.time()
-    clients, server = proto_initialization(clients, server)
+    clients, server, commu_cost = proto_initialization(clients, server)
     train_time = time.time() - start_time
     total_train_time += train_time
+    total_communication_cost += commu_cost
     print(f'train time cost: {train_time:.2f}s')
 
     # cal val loss
@@ -255,7 +244,7 @@ def run(args):
     print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
     with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
-        json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
+        json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'total_communication_cost': total_communication_cost}, f)
         f.write('\n')
 
 if __name__ == "__main__":
