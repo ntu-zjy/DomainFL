@@ -5,7 +5,7 @@ import time
 import torch
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet, adaptiope
+from utils.get_data import domainnet, adaptiope, PACS
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val
 from utils.server import Server
@@ -40,6 +40,7 @@ def fedavg(weights, clientObjs, server):
 
     print("FedAvg... with weights: ", weights)
     print(f"Communication cost for this round: {total_communication_cost / (1024 ** 2):.2f} MB")
+    one_round_communication_cost = total_communication_cost / (1024 ** 2)
 
     # server receive the adapters from clients
     adapters = [c.model.base.adapter for c in clientObjs]
@@ -114,55 +115,12 @@ def run(args):
     # train and test clients
     total_test_time, total_train_time = 0, 0
 
-    patience = 10
-    best_loss = float('inf')
-    counter = 0
-    early_stop = False
     args.global_rounds = 1
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
-        # cal val loss
-        val_loss = 0
-        for id in range(len(clients)):
-            val_loss += clients[id].cal_val_loss()
-        print(f'Round {r} val loss: {val_loss:.4f}')
-        if val_loss < best_loss:
-            best_loss = val_loss
-            counter = 0
-            print("save finetuned local models")
-            for client in clients:
-                client.save_adapter(args, algo='fedavg')
-        else:
-            counter += 1
-            if counter >= patience:
-                print(f'Early stopping at round {r}')
-                early_stop = True
-
-
-        print(f'Round {r} best val loss: {best_loss:.4f}, counter: {counter}')
-
-        start_time = time.time()
-        if (r % args.eval_interval == 0 or r == args.global_rounds - 1) or early_stop or counter == 0:
-            client_acc = []
-            for id, client in enumerate(clients):
-                accs = client.test_on_all_clients(clients)
-                client_acc.append(accs)
-
-            with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
-                json.dump({'round':r, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time}, f)
-                f.write('\n')
-
-            if early_stop:
-                break
-        test_time = time.time() - start_time
-        print(f'Round {r} test time cost: {test_time:.2f}s')
-
-        start_time = time.time()
         # fine tune clients
         for id in range(len(clients)):
             clients[id].fine_tune()
-        train_time = time.time() - start_time
-        print(f'Round {r} train time cost: {train_time:.2f}s')
 
         # after fine tuning clients, we need to aggregate the adapters
         weights = calculate_fedavg_weights(clients)
@@ -171,11 +129,13 @@ def run(args):
 
         communication_cost += commu_cost
 
-        total_test_time += test_time
-        total_train_time += train_time
 
     print(f"Communication cost of all: {communication_cost / (1024 ** 2):.2f} MB")
     print(f"Communication cost of all add Head: {(communication_cost + communication_cost_head)/ (1024 ** 2):.2f} MB")
+    with open(f'./costs/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'a+') as f:
+        json.dump({"Communication_cost": f"{(communication_cost)/ (1024 ** 2):.4f}"}, f)
+        f.write('\n')
+
     total_time_cost = total_test_time + total_train_time
     print(f'Total time cost: {total_time_cost:.2f}s')
 
@@ -205,8 +165,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/fedavg/', exist_ok=True)
-    with open(f'./results/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
+    os.makedirs(f'./costs/fedavg/', exist_ok=True)
+    with open(f'./costs/fedavg/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

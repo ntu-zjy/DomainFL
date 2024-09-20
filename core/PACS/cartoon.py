@@ -9,7 +9,7 @@ import numpy as np
 from .PACSBase import BasePACSDataset
 
 class Cartoon:
-    def __init__(self, train_preprocess, val_preprocess, location=os.path.expanduser('~/data/PACS'), batch_size=128, num_workers=0):
+    def __init__(self, train_preprocess, val_preprocess, location=os.path.expanduser('~/data/PACS/PACS'), batch_size=128, num_workers=0):
         self.train_dataset = BasePACSDataset(location, domain='cartoon', split='train', transform=train_preprocess)
         self.test_dataset = BasePACSDataset(location, domain='cartoon', split='test', transform=val_preprocess)
         self.val_dataset = None

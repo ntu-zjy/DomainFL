@@ -185,7 +185,7 @@ def proto_initialization(clientObjs, server):
     # Calculate the communication cost for sending the training data
     print(f"Communication cost for sending training data: {training_data_size / (1024 ** 2):.2f} MB")
 
-    return clientObjs, server, commu_cost_adapter + commu_cost_head + training_data_size
+    return clientObjs, server, commu_cost_adapter + training_data_size
 
 def run(args):
     # initialize server
@@ -223,28 +223,15 @@ def run(args):
 
     start_time = time.time()
     clients, server, commu_cost = proto_initialization(clients, server)
-    train_time = time.time() - start_time
-    total_train_time += train_time
+
     total_communication_cost += commu_cost
-    print(f'train time cost: {train_time:.2f}s')
-
-    # cal val loss
-    val_loss = 0
-    for id in range(len(clients)):
-        val_loss += clients[id].cal_val_loss()
-    print(f'val loss: {val_loss:.4f}')
-
-    start_time = time.time()
-    client_acc = []
-    for id, client in enumerate(clients):
-        accs = client.test_on_all_clients(clients)
-        client_acc.append(accs)
+    print(f"Communication cost of all: {(total_communication_cost)/ (1024 ** 2):.2f} MB")
 
     test_time = time.time() - start_time
     print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
-        json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'total_communication_cost': total_communication_cost}, f)
+    with open(f'./costs/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
+        json.dump({"Communication_cost": f"{(total_communication_cost)/ (1024 ** 2):.4f}"}, f)
         f.write('\n')
 
 if __name__ == "__main__":
@@ -278,8 +265,8 @@ if __name__ == "__main__":
     else:
         args.device = torch.device('cpu')
 
-    os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
+    os.makedirs(f'./costs/ours/', exist_ok=True)
+    with open(f'./costs/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 
