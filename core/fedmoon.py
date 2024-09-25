@@ -116,7 +116,7 @@ def run(args):
     best_loss = float('inf')
     counter = 0
     early_stop = False
-    args.global_rounds = 1
+    # args.global_rounds = 1
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         # cal val loss

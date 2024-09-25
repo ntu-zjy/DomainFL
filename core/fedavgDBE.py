@@ -127,7 +127,7 @@ def run(args):
     counter = 0
     early_stop = False
     clients = init_global_mean(calculate_fedavg_weights(clients), clients)
-    args.global_rounds = 1
+    # args.global_rounds = 1
     for r in range(args.global_rounds):
         print(f'==================== Round {r} ====================')
         val_loss = 0
