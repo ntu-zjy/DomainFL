@@ -220,10 +220,6 @@ class Client(nn.Module):
         prob_list = np.vstack(prob_list)
 
         acc = 100 * accuracy_score(labels_list, predicted_list)
-        auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
-        f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
-        precision = 100 * precision_score(labels_list, predicted_list, average='macro')
-        recall = 100 * recall_score(labels_list, predicted_list, average='macro')
         return round(acc, 4)
 
 

@@ -7,49 +7,78 @@ import torch
 import random
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet, adaptiope, PACS
+from utils.get_data import domainnet, adaptiope
 from utils.get_data import get_data
-from utils.data_utils import build_subset, split_train_and_val
+from utils.data_utils import build_subset, split_train_and_val, build_subset_mixed, concat_datasets
 from utils.server import Server
 from utils.clientours import Client
 from utils.json_utils import generate_json_config
 import warnings
 import numpy as np
 from collections import defaultdict
+
 warnings.simplefilter("ignore")
 
 torch.manual_seed(1)
 torch.cuda.manual_seed(1) if torch.cuda.is_available() else None
 
 
-def get_model_parameters_size(model):
-    parameters_size = 0
-    for param_tensor in model.state_dict():
-        parameters_size += model.state_dict()[param_tensor].numel() * model.state_dict()[param_tensor].element_size()
-    return parameters_size
+def generate_protos_training_data(uploaded_protos, batchsize=10):
+    classes = uploaded_protos[0].keys()
+    protos = []
+    labels = []
+    # proto in every client
+    for proto in uploaded_protos:
+        # proto in every class
+        for c in classes:
+            protos_class_c = proto[c]
+            protos.append(protos_class_c)
+            # labels.append(c)
+            labels.extend([c] * protos_class_c.shape[0])
+
+    # generate batched data
+    protos = torch.vstack(protos)
+    labels = torch.tensor(labels, dtype=torch.long)
+    print('protos:', protos.shape)
+    print('labels:', labels.shape)
+    total_protos = protos.shape[0]
+
+    # shuffle the training data
+    perm = torch.randperm(total_protos)
+    protos = protos[perm, :]
+    labels = labels[perm]
+
+    # calculate the number of batches
+    max_full_batches = total_protos // batchsize
+    new_total_protos = max_full_batches * batchsize
+
+    # drop last
+    protos = protos[:new_total_protos]
+    labels = labels[:new_total_protos]
+
+    protos = protos.view(-1, batchsize, protos.shape[-1])
+    labels = labels.view(-1, batchsize)
+
+    # generate training data
+    training_data = []
+    for i in range(protos.shape[0]):
+        training_data.append((protos[i], labels[i]))
+    # print('training_data:', training_data)
+    return training_data
+
 
 def send_adaptive_global_adapter(global_adapter, clientObjs):
-    # Calculate communication cost for sending the global adapter
-    adapter_size = get_model_parameters_size(global_adapter)
-    total_communication_cost = adapter_size * len(clientObjs)  # Sending to each client
-
-    print(f"Communication cost for sending global adapter: {total_communication_cost / (1024 ** 2):.2f} MB")
-
     for client in clientObjs:
         client.model.base.global_adapter.load_state_dict(global_adapter.state_dict())
         client.model.base.adapter.load_state_dict(global_adapter.state_dict())
-    return clientObjs, total_communication_cost
+    return clientObjs
+
 
 def send_global_head(global_cls_head, clientObjs):
-    # Calculate communication cost for sending the global classification head
-    head_size = get_model_parameters_size(global_cls_head)
-    total_communication_cost = head_size * len(clientObjs)  # Sending to each client
-
-    print(f"Communication cost for sending global head: {total_communication_cost / (1024 ** 2):.2f} MB")
-
     for client in clientObjs:
         client.model.head.load_state_dict(global_cls_head.state_dict())
-    return clientObjs, total_communication_cost
+    return clientObjs
+
 
 def server_adative_training(training_data, server, threshold=0.001, num_losses=20):
     losses = []
@@ -57,12 +86,14 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
     server.global_cls_head.train()
     server.freeze_except_global_adapter()
     optimizer = torch.optim.AdamW(server.image_encoder.global_adapter.parameters(), lr=server.learning_rate)
+
     def lr_lambda(current_epoch):
         if current_epoch < server.warm_up:
             return (float(current_epoch) + 1) / float(max(1, server.warm_up))
         else:
             # Cosine annealing
-            return 0.5 * (1 + math.cos(math.pi * (current_epoch - server.warm_up) / (server.max_epochs - server.warm_up)))
+            return 0.5 * (
+                        1 + math.cos(math.pi * (current_epoch - server.warm_up) / (server.max_epochs - server.warm_up)))
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
@@ -96,6 +127,7 @@ def server_adative_training(training_data, server, threshold=0.001, num_losses=2
 
     return server.image_encoder.global_adapter
 
+
 def receive_protos(clients):
     uploaded_ids = []
     uploaded_protos = []
@@ -103,6 +135,7 @@ def receive_protos(clients):
         uploaded_ids.append(client.id)
         uploaded_protos.append(client.protos)
     return uploaded_protos
+
 
 def proto_aggregation(local_protos_list):
     agg_protos_label = defaultdict(list)
@@ -121,71 +154,60 @@ def proto_aggregation(local_protos_list):
 
     return agg_protos_label
 
+
 def calculate_fedts_weights(clients):
     # every client use the same weight
-    weights = [1/len(clients) for c in clients]
+    weights = [1 / len(clients) for c in clients]
     return weights
 
 
-def generate_protos_training_data(uploaded_protos, batchsize=10):
-    classes = uploaded_protos[0].keys()
-    protos = []
-    labels = []
-    # proto in every client
-    for proto in uploaded_protos:
-        # proto in every class
-        for c in classes:
-            protos_class_c = proto[c]
-            protos.append(protos_class_c)
-            labels.extend([c] * protos_class_c.shape[0])
-
-    # generate batched data
-    protos = torch.vstack(protos)
-    labels = torch.tensor(labels, dtype=torch.long)
-    print('protos:', protos.shape)
-    print('labels:', labels.shape)
-    total_protos = protos.shape[0]
-
-    # shuffle the training data
-    perm = torch.randperm(total_protos)
-    protos = protos[perm, :]
-    labels = labels[perm]
-
-    # calculate the number of batches
-    max_full_batches = total_protos // batchsize
-    new_total_protos = max_full_batches * batchsize
-
-    # drop last
-    protos = protos[:new_total_protos]
-    labels = labels[:new_total_protos]
-
-    protos = protos.view(-1, batchsize, protos.shape[-1])
-    labels = labels.view(-1, batchsize)
-
-    # calculate the size of the training data
-    protos_size = protos.numel() * protos.element_size()
-    labels_size = labels.numel() * labels.element_size()
-    total_size = protos_size + labels_size
-
-    # generate training data
-    training_data = []
-    for i in range(protos.shape[0]):
-        training_data.append((protos[i], labels[i]))
-
-    return training_data, total_size
-
 def proto_initialization(clientObjs, server):
     uploaded_protos = receive_protos(clientObjs)
-    training_data, training_data_size = generate_protos_training_data(uploaded_protos)
+    # global_protos = proto_aggregation(uploaded_protos) # do not aggregate the protos !!!
+    training_data = generate_protos_training_data(uploaded_protos)
     global_adapter = server_adative_training(training_data, server)
-    clientObjs, commu_cost_adapter = send_adaptive_global_adapter(global_adapter, clientObjs)
-    clientObjs, commu_cost_head = send_global_head(server.global_cls_head, clientObjs)
+    clientObjs = send_adaptive_global_adapter(global_adapter, clientObjs)
+    clientObjs = send_global_head(server.global_cls_head, clientObjs)
     server.image_encoder.global_adapter.load_state_dict(global_adapter.state_dict())
+    return clientObjs, server
 
-    # Calculate the communication cost for sending the training data
-    print(f"Communication cost for sending training data: {training_data_size / (1024 ** 2):.2f} MB")
 
-    return clientObjs, server, commu_cost_adapter + commu_cost_head + training_data_size
+def calculate_fedavg_weights(clients):
+    total_train_num = 0
+    num_list = []
+    for c in clients:
+        train_num = len(c.train_dataloader) * c.batch_size
+        total_train_num += train_num
+        num_list.append(train_num)
+    weights = [num / total_train_num for num in num_list]
+    return weights
+
+
+def fedavg(weights, clientObjs, server):
+    print("FedAvg... with weights: ", weights)
+    # server receive the adapters from clients
+    adapters = [c.model.base.adapter for c in clientObjs]
+
+    # fedavg aggregation
+    server_global_adapter = copy.deepcopy(server.image_encoder.global_adapter)
+    for param in server_global_adapter.parameters():
+        param.data.zero_()
+
+    for adapter in adapters:
+        for w, global_param, param in zip(weights, server_global_adapter.parameters(), adapter.parameters()):
+            global_param.data += w * param.data.clone()
+    # set the global adapter to the server
+    server.image_encoder.global_adapter.load_state_dict(server_global_adapter.state_dict())
+
+    # send the global adapter back to the clients
+    # param will be covered as global param
+    for id in range(len(clientObjs)):
+        for param, global_param in zip(clientObjs[id].model.base.adapter.parameters(),
+                                       server_global_adapter.parameters()):
+            param.data = global_param.data.clone()
+
+    return clientObjs, server
+
 
 def run(args):
     # initialize server
@@ -195,15 +217,45 @@ def run(args):
     dataset = globals()[args.dataset]
 
     # initialize clients
+    # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
+    domains_num = len(dataset)
+    split_num = args.split_num
+    clients_ids = []
+    for i in range(domains_num):
+        for j in range(split_num):
+            clients_ids.append([(i, j)])
+    split_ratios = [i * (1.0 / split_num) for i in range(1, split_num)]
+    # clients_ids = [[(0, 0)],[(0, 1)],[(0, 2)],[(1, 0)],[(1, 1)],[(1, 2)],
+    #                [(2, 0)],[(2, 1)],[(2, 2)], [(3, 0)],[(3, 1)],[(3, 2)],
+    #                [(4, 0)], [(4, 1)], [(4, 2)], [(5, 0)],[(5, 1)],[(5, 2)]]
+    # [[(0, 0)], [(0, 1)], [(0, 2)], [(0, 3)], [(1, 0)], [(1, 1)], [(1, 2)], [(1, 3)],
+    #  [(2, 0)], [(2, 1)], [(2, 2)], [(2, 3)], [(3, 0)], [(3, 1)], [(3, 2)], [(3, 3)],
+    #  [(4, 0)], [(4, 1)], [(4, 2)], [(4, 3)], [(5, 0)], [(5, 1)], [(5, 2)], [(5, 3)]]
+    # clients_ids = [[(0, 1), (1, 0)], [(1, 1), (2, 0)], [(2, 1), (3, 0)], [(3, 1), (4, 0)], [(4, 1), (5, 0)],
+    #                    [(5, 1), (0, 0)]]
+    clients_subsets = []
     for id, data_name in enumerate(dataset):
+        cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
+        cds = build_subset_mixed(cds, args.subset_size, ratios=split_ratios)
+        # 没划分
+        new_cds = []
+        for cd in cds:
+            new_cd = split_train_and_val(cd)
+            new_cds.append(new_cd)
+        clients_subsets.append(new_cds)
+
+    for ist in range(len(clients_ids)):
+        data_name = dataset[clients_ids[ist][0][0]]
+        sub = clients_subsets[clients_ids[ist][0][0]][clients_ids[ist][0][1]]
+        # sub2 = clients_subsets[clients_ids[ist][1][0]][clients_ids[ist][1][1]]
         init_image_encoder = copy.deepcopy(server.image_encoder)
-        cd = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
-        cd = build_subset(cd, args.subset_size)
-        cd = split_train_and_val(cd)
+        cd = sub
+        # cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
-        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader, cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        client = Client(args, ist, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader,
+                        cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
         clients.append(client)
         cls_heads.append(cls_head)
         del cd
@@ -211,21 +263,23 @@ def run(args):
     # generate global cls head
     server.generate_global_cls_head(cls_heads)
 
-    print("the parameters that require grad in clients[0].model:", [k for k,p in clients[0].model.named_parameters() if p.requires_grad]) # make sure only fine tune the local adapter
+    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
+    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
+    print("the parameters that require grad in clients[0].model:",
+          [k for k, p in clients[0].model.named_parameters() if
+           p.requires_grad])  # make sure only fine tune the local adapter
 
     # train and test clients
     total_test_time, total_train_time = 0, 0
-    total_communication_cost = 0
 
     # fine tune clients
     for id in range(len(clients)):
         clients[id].fine_tune(global_round=0)
 
     start_time = time.time()
-    clients, server, commu_cost = proto_initialization(clients, server)
+    clients, server = proto_initialization(clients, server)
     train_time = time.time() - start_time
     total_train_time += train_time
-    total_communication_cost += commu_cost
     print(f'train time cost: {train_time:.2f}s')
 
     # cal val loss
@@ -243,33 +297,109 @@ def run(args):
     test_time = time.time() - start_time
     print(f'test time cost: {test_time:.2f}s')
     total_test_time += test_time
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'a+') as f:
-        json.dump({'round':0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time, 'total_communication_cost': total_communication_cost}, f)
+    with open(
+            f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_split{args.split_num}.json',
+            'a+') as f:
+        json.dump(
+            {'round': 0, 'acc': client_acc, 'total_test_time': total_test_time,
+             'total_train_time': total_train_time},
+            f)
         f.write('\n')
+
+
+def run_old(args):
+    # initialize server
+    server = Server(args)
+
+    # set dataset
+    dataset = globals()[args.dataset]
+
+    # initialize clients
+    # client image encoder is the same as the global image encoder
+    clients = []
+    cls_heads = []
+    for id, data_name in enumerate(dataset):
+        init_image_encoder = copy.deepcopy(server.image_encoder)
+        cd = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
+        cd = build_subset(cd, args.subset_size)
+        cd = split_train_and_val(cd)
+        cls_head = server.generate_cls_head(cd, data_name)
+        client = Client(args, id, cd.train_dataset, cd.test_dataset, cd.val_dataset, cd.train_loader, cd.test_loader,
+                        cd.val_loader, cd.classnames, init_image_encoder, cls_head, data_name)
+        clients.append(client)
+        cls_heads.append(cls_head)
+        del cd
+
+    # generate global cls head
+    server.generate_global_cls_head(cls_heads)
+
+    # print("clients[0].model.keys():", clients[0].model.state_dict().keys())
+    # print("name of the parameters in clients[0].model:", [k for k,_ in clients[0].model.named_parameters()])
+    print("the parameters that require grad in clients[0].model:", [k for k, p in clients[0].model.named_parameters() if
+                                                                    p.requires_grad])  # make sure only fine tune the local adapter
+
+    # train and test clients
+    total_test_time, total_train_time = 0, 0
+
+    # fine tune clients
+    for id in range(len(clients)):
+        clients[id].fine_tune(global_round=0)
+
+    start_time = time.time()
+    clients, server = proto_initialization(clients, server)
+    train_time = time.time() - start_time
+    total_train_time += train_time
+    print(f'train time cost: {train_time:.2f}s')
+
+    # cal val loss
+    val_loss = 0
+    for id in range(len(clients)):
+        val_loss += clients[id].cal_val_loss()
+    print(f'val loss: {val_loss:.4f}')
+
+    start_time = time.time()
+    client_acc = []
+    for id, client in enumerate(clients):
+        accs = client.test_on_all_clients(clients)
+        client_acc.append(accs)
+
+    test_time = time.time() - start_time
+    print(f'test time cost: {test_time:.2f}s')
+    total_test_time += test_time
+    with open(
+            f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_split{args.split_num}.json',
+            'a+') as f:
+        json.dump(
+            {'round': 0, 'acc': client_acc, 'total_test_time': total_test_time, 'total_train_time': total_train_time},
+            f)
+        f.write('\n')
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DomainFL')
-    parser.add_argument('-d','--dataset', type=str, default='PACS', help='Dataset name')
-    parser.add_argument('-ss','--subset_size', type=int, default=100, help='Subset size')
-    parser.add_argument('-m','--model', type=str, default='CLIP', help='Model name')
-    parser.add_argument('-ien','--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
-    parser.add_argument('-optim','--optimizer', type=str, default='AdamW', help='Optimizer name')
-    parser.add_argument('-lr','--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('-clip','--clip', type=float, default=1, help='Gradient clip')
-    parser.add_argument('-bs','--batch_size', type=int, default=32, help='Batch size')
-    parser.add_argument('-le','--local_epochs', type=int, default=1, help='Number of epochs')
-    parser.add_argument('-warm_up','--warm_up', type=int, default=10, help='Warm up epochs')
-    parser.add_argument('-gr','--global_rounds', type=int, default=200, help='Number of global rounds')
-    parser.add_argument('-device','--device', type=str, default='cuda', help='Device')
-    parser.add_argument('-num_workers','--num_workers', type=int, default=12, help='Number of workers')
-    parser.add_argument('-eval','--eval_interval', type=int, default=200, help='Log interval')
-    parser.add_argument('-did','--device_id', type=str, default=0, help='Device ID')
-    parser.add_argument('-seed','--seed', type=int, default=1, help='Seed')
-    parser.add_argument('-rw','--regularization_weight', type=float, default=0, help='Regularization weight')
-    parser.add_argument('-kdw','--kd_loss_weight', type=float, default=0, help='KD loss weight')
-    parser.add_argument('-sra','--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
-    parser.add_argument('-sram','--sample_ratio_method', type=str, default='cluster', help='Sample ratio method (random or cluster)')
-    parser.add_argument('-dp','--diff_privacy', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-d', '--dataset', type=str, default='domainnet', help='Dataset name')
+    parser.add_argument('-ss', '--subset_size', type=int, default=100, help='Subset size')
+    parser.add_argument('-m', '--model', type=str, default='CLIP', help='Model name')
+    parser.add_argument('-ien', '--image_encoder_name', type=str, default='ViT-B-32', help='Image encoder name')
+    parser.add_argument('-optim', '--optimizer', type=str, default='AdamW', help='Optimizer name')
+    parser.add_argument('-lr', '--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('-clip', '--clip', type=float, default=1, help='Gradient clip')
+    parser.add_argument('-bs', '--batch_size', type=int, default=32, help='Batch size')
+    parser.add_argument('-le', '--local_epochs', type=int, default=1, help='Number of epochs')
+    parser.add_argument('-warm_up', '--warm_up', type=int, default=10, help='Warm up epochs')
+    parser.add_argument('-gr', '--global_rounds', type=int, default=200, help='Number of global rounds')
+    parser.add_argument('-device', '--device', type=str, default='cuda', help='Device')
+    parser.add_argument('-num_workers', '--num_workers', type=int, default=12, help='Number of workers')
+    parser.add_argument('-eval', '--eval_interval', type=int, default=200, help='Log interval')
+    parser.add_argument('-did', '--device_id', type=str, default=0, help='Device ID')
+    parser.add_argument('-seed', '--seed', type=int, default=1, help='Seed')
+    parser.add_argument('-rw', '--regularization_weight', type=float, default=0, help='Regularization weight')
+    parser.add_argument('-kdw', '--kd_loss_weight', type=float, default=0, help='KD loss weight')
+    parser.add_argument('-sra', '--sample_ratio', type=float, default=0.1, help='Sample ratio of all embeddings')
+    parser.add_argument('-sram', '--sample_ratio_method', type=str, default='cluster',
+                        help='Sample ratio method (random or cluster)')
+    parser.add_argument('-dp', '--diff_privacy', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-split_num', '--split_num', type=int, default=3, help='Split number (Max 3, Min 2)')
 
     args = parser.parse_args()
 
@@ -279,7 +409,9 @@ if __name__ == "__main__":
         args.device = torch.device('cpu')
 
     os.makedirs(f'./results/ours/', exist_ok=True)
-    with open(f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}.json', 'w+') as f:
+    with open(
+            f'./results/ours/{args.image_encoder_name}_{args.dataset}_sub{args.subset_size}_sra{args.sample_ratio}_sram{args.sample_ratio_method}_split{args.split_num}.json',
+            'w+') as f:
         json.dump(generate_json_config(args), f)
         f.write('\n')
 

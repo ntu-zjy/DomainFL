@@ -1,0 +1,181 @@
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/local.py", line 168, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/local.py", line 31, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedavg.py", line 248, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedavg.py", line 89, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedprox.py", line 248, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedprox.py", line 93, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedditto.py", line 254, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedditto.py", line 93, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedmoon.py", line 247, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedmoon.py", line 90, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedproto.py", line 254, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedproto.py", line 104, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/fedavgDBE.py", line 255, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/fedavgDBE.py", line 100, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+Traceback (most recent call last):
+  File "/home/10230/DomainFL/core/ours.py", line 418, in <module>
+    run(args)
+  File "/home/10230/DomainFL/core/ours.py", line 217, in run
+    dataset = globals()[args.dataset]
+              ~~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'data'
+usage: ours.py [-h] [-d DATASET] [-ss SUBSET_SIZE] [-m MODEL]
+               [-ien IMAGE_ENCODER_NAME] [-optim OPTIMIZER] [-lr LR]
+               [-clip CLIP] [-bs BATCH_SIZE] [-le LOCAL_EPOCHS]
+               [-warm_up WARM_UP] [-gr GLOBAL_ROUNDS] [-device DEVICE]
+               [-num_workers NUM_WORKERS] [-eval EVAL_INTERVAL]
+               [-did DEVICE_ID] [-seed SEED] [-rw REGULARIZATION_WEIGHT]
+               [-kdw KD_LOSS_WEIGHT] [-sra SAMPLE_RATIO]
+               [-sram SAMPLE_RATIO_METHOD] [-dp DIFF_PRIVACY]
+               [-split_num SPLIT_NUM]
+ours.py: error: argument -d/--dataset: expected one argument
+usage: ours.py [-h] [-d DATASET] [-ss SUBSET_SIZE] [-m MODEL]
+               [-ien IMAGE_ENCODER_NAME] [-optim OPTIMIZER] [-lr LR]
+               [-clip CLIP] [-bs BATCH_SIZE] [-le LOCAL_EPOCHS]
+               [-warm_up WARM_UP] [-gr GLOBAL_ROUNDS] [-device DEVICE]
+               [-num_workers NUM_WORKERS] [-eval EVAL_INTERVAL]
+               [-did DEVICE_ID] [-seed SEED] [-rw REGULARIZATION_WEIGHT]
+               [-kdw KD_LOSS_WEIGHT] [-sra SAMPLE_RATIO]
+               [-sram SAMPLE_RATIO_METHOD] [-dp DIFF_PRIVACY]
+               [-split_num SPLIT_NUM]
+ours.py: error: argument -d/--dataset: expected one argument
+usage: ours.py [-h] [-d DATASET] [-ss SUBSET_SIZE] [-m MODEL]
+               [-ien IMAGE_ENCODER_NAME] [-optim OPTIMIZER] [-lr LR]
+               [-clip CLIP] [-bs BATCH_SIZE] [-le LOCAL_EPOCHS]
+               [-warm_up WARM_UP] [-gr GLOBAL_ROUNDS] [-device DEVICE]
+               [-num_workers NUM_WORKERS] [-eval EVAL_INTERVAL]
+               [-did DEVICE_ID] [-seed SEED] [-rw REGULARIZATION_WEIGHT]
+               [-kdw KD_LOSS_WEIGHT] [-sra SAMPLE_RATIO]
+               [-sram SAMPLE_RATIO_METHOD] [-dp DIFF_PRIVACY]
+               [-split_num SPLIT_NUM]
+ours.py: error: argument -d/--dataset: expected one argument
+usage: ours.py [-h] [-d DATASET] [-ss SUBSET_SIZE] [-m MODEL]
+               [-ien IMAGE_ENCODER_NAME] [-optim OPTIMIZER] [-lr LR]
+               [-clip CLIP] [-bs BATCH_SIZE] [-le LOCAL_EPOCHS]
+               [-warm_up WARM_UP] [-gr GLOBAL_ROUNDS] [-device DEVICE]
+               [-num_workers NUM_WORKERS] [-eval EVAL_INTERVAL]
+               [-did DEVICE_ID] [-seed SEED] [-rw REGULARIZATION_WEIGHT]
+               [-kdw KD_LOSS_WEIGHT] [-sra SAMPLE_RATIO]
+               [-sram SAMPLE_RATIO_METHOD] [-dp DIFF_PRIVACY]
+               [-split_num SPLIT_NUM]
+ours.py: error: argument -d/--dataset: expected one argument
+usage: ours.py [-h] [-d DATASET] [-ss SUBSET_SIZE] [-m MODEL]
+               [-ien IMAGE_ENCODER_NAME] [-optim OPTIMIZER] [-lr LR]
+               [-clip CLIP] [-bs BATCH_SIZE] [-le LOCAL_EPOCHS]
+               [-warm_up WARM_UP] [-gr GLOBAL_ROUNDS] [-device DEVICE]
+               [-num_workers NUM_WORKERS] [-eval EVAL_INTERVAL]
+               [-did DEVICE_ID] [-seed SEED] [-rw REGULARIZATION_WEIGHT]
+               [-kdw KD_LOSS_WEIGHT] [-sra SAMPLE_RATIO]
+               [-sram SAMPLE_RATIO_METHOD] [-dp DIFF_PRIVACY]
+               [-split_num SPLIT_NUM]
+ours.py: error: argument -d/--dataset: expected one argument
+len(targets): 2886
+len(targets): 2886
+len(targets): 2886
+len(targets): 4845
+len(targets): 4845
+len(targets): 4845
+len(targets): 11539
+len(targets): 11539
+len(targets): 11539
+len(targets): 3723
+len(targets): 3723
+len(targets): 3723
+len(targets): 11700
+len(targets): 11700
+len(targets): 11700
+len(targets): 2604
+len(targets): 2604
+len(targets): 2604
+build data Clipart classification head
+  0%|          | 0/100 [00:00<?, ?it/s]  1%|          | 1/100 [00:00<01:00,  1.63it/s] 13%|█▎        | 13/100 [00:00<00:03, 23.77it/s] 25%|██▌       | 25/100 [00:00<00:01, 43.82it/s] 37%|███▋      | 37/100 [00:00<00:01, 60.63it/s] 49%|████▉     | 49/100 [00:01<00:00, 74.96it/s] 61%|██████    | 61/100 [00:01<00:00, 86.24it/s] 73%|███████▎  | 73/100 [00:01<00:00, 94.92it/s] 85%|████████▌ | 85/100 [00:01<00:00, 100.94it/s] 97%|█████████▋| 97/100 [00:01<00:00, 105.21it/s]100%|██████████| 100/100 [00:01<00:00, 68.26it/s]
+build data Clipart classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.86it/s] 24%|██▍       | 24/100 [00:00<00:00, 116.25it/s] 36%|███▌      | 36/100 [00:00<00:00, 116.09it/s] 48%|████▊     | 48/100 [00:00<00:00, 116.81it/s] 60%|██████    | 60/100 [00:00<00:00, 117.30it/s] 72%|███████▏  | 72/100 [00:00<00:00, 117.02it/s] 84%|████████▍ | 84/100 [00:00<00:00, 116.98it/s] 96%|█████████▌| 96/100 [00:00<00:00, 117.23it/s]100%|██████████| 100/100 [00:00<00:00, 116.91it/s]
+build data Clipart classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 116.65it/s] 24%|██▍       | 24/100 [00:00<00:00, 116.48it/s] 36%|███▌      | 36/100 [00:00<00:00, 116.94it/s] 48%|████▊     | 48/100 [00:00<00:00, 116.99it/s] 60%|██████    | 60/100 [00:00<00:00, 117.13it/s] 72%|███████▏  | 72/100 [00:00<00:00, 117.20it/s] 84%|████████▍ | 84/100 [00:00<00:00, 117.35it/s] 96%|█████████▌| 96/100 [00:00<00:00, 117.54it/s]100%|██████████| 100/100 [00:00<00:00, 117.23it/s]
+build data Painting classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 116.14it/s] 24%|██▍       | 24/100 [00:00<00:00, 115.63it/s] 36%|███▌      | 36/100 [00:00<00:00, 114.94it/s] 48%|████▊     | 48/100 [00:00<00:00, 114.91it/s] 60%|██████    | 60/100 [00:00<00:00, 115.33it/s] 72%|███████▏  | 72/100 [00:00<00:00, 115.37it/s] 84%|████████▍ | 84/100 [00:00<00:00, 115.26it/s] 96%|█████████▌| 96/100 [00:00<00:00, 114.85it/s]100%|██████████| 100/100 [00:00<00:00, 115.09it/s]
+build data Painting classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 115.44it/s] 24%|██▍       | 24/100 [00:00<00:00, 116.62it/s] 36%|███▌      | 36/100 [00:00<00:00, 116.37it/s] 48%|████▊     | 48/100 [00:00<00:00, 116.65it/s] 60%|██████    | 60/100 [00:00<00:00, 116.67it/s] 72%|███████▏  | 72/100 [00:00<00:00, 116.73it/s] 84%|████████▍ | 84/100 [00:00<00:00, 116.43it/s] 96%|█████████▌| 96/100 [00:00<00:00, 116.13it/s]100%|██████████| 100/100 [00:00<00:00, 116.34it/s]
+build data Painting classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 117.68it/s] 24%|██▍       | 24/100 [00:00<00:00, 117.26it/s] 36%|███▌      | 36/100 [00:00<00:00, 116.92it/s] 48%|████▊     | 48/100 [00:00<00:00, 117.11it/s] 60%|██████    | 60/100 [00:00<00:00, 116.71it/s] 72%|███████▏  | 72/100 [00:00<00:00, 116.05it/s] 84%|████████▍ | 84/100 [00:00<00:00, 115.49it/s] 96%|█████████▌| 96/100 [00:00<00:00, 115.35it/s]100%|██████████| 100/100 [00:00<00:00, 116.05it/s]
+build data Real classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.44it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.95it/s] 36%|███▌      | 36/100 [00:00<00:00, 114.35it/s] 48%|████▊     | 48/100 [00:00<00:00, 114.93it/s] 60%|██████    | 60/100 [00:00<00:00, 115.27it/s] 72%|███████▏  | 72/100 [00:00<00:00, 116.20it/s] 84%|████████▍ | 84/100 [00:00<00:00, 116.83it/s] 96%|█████████▌| 96/100 [00:00<00:00, 117.32it/s]100%|██████████| 100/100 [00:00<00:00, 116.15it/s]
+build data Real classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 115.53it/s] 24%|██▍       | 24/100 [00:00<00:00, 115.65it/s] 36%|███▌      | 36/100 [00:00<00:00, 115.67it/s] 48%|████▊     | 48/100 [00:00<00:00, 115.12it/s] 60%|██████    | 60/100 [00:00<00:00, 115.85it/s] 72%|███████▏  | 72/100 [00:00<00:00, 115.79it/s] 84%|████████▍ | 84/100 [00:00<00:00, 115.76it/s] 96%|█████████▌| 96/100 [00:00<00:00, 115.31it/s]100%|██████████| 100/100 [00:00<00:00, 115.44it/s]
+build data Real classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.08it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.74it/s] 36%|███▌      | 36/100 [00:00<00:00, 115.11it/s] 48%|████▊     | 48/100 [00:00<00:00, 115.68it/s] 60%|██████    | 60/100 [00:00<00:00, 115.43it/s] 72%|███████▏  | 72/100 [00:00<00:00, 115.66it/s] 84%|████████▍ | 84/100 [00:00<00:00, 116.05it/s] 96%|█████████▌| 96/100 [00:00<00:00, 115.83it/s]100%|██████████| 100/100 [00:00<00:00, 115.58it/s]
+build data Sketch classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 113.39it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.39it/s] 36%|███▌      | 36/100 [00:00<00:00, 114.63it/s] 48%|████▊     | 48/100 [00:00<00:00, 115.26it/s] 60%|██████    | 60/100 [00:00<00:00, 115.40it/s] 72%|███████▏  | 72/100 [00:00<00:00, 115.21it/s] 84%|████████▍ | 84/100 [00:00<00:00, 115.29it/s] 96%|█████████▌| 96/100 [00:00<00:00, 115.09it/s]100%|██████████| 100/100 [00:00<00:00, 115.00it/s]
+build data Sketch classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.86it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.00it/s] 36%|███▌      | 36/100 [00:00<00:00, 113.47it/s] 48%|████▊     | 48/100 [00:00<00:00, 113.47it/s] 60%|██████    | 60/100 [00:00<00:00, 113.78it/s] 72%|███████▏  | 72/100 [00:00<00:00, 113.99it/s] 84%|████████▍ | 84/100 [00:00<00:00, 114.13it/s] 96%|█████████▌| 96/100 [00:00<00:00, 114.14it/s]100%|██████████| 100/100 [00:00<00:00, 113.95it/s]
+build data Sketch classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 113.44it/s] 24%|██▍       | 24/100 [00:00<00:00, 113.50it/s] 36%|███▌      | 36/100 [00:00<00:00, 114.01it/s] 48%|████▊     | 48/100 [00:00<00:00, 114.01it/s] 60%|██████    | 60/100 [00:00<00:00, 113.74it/s] 72%|███████▏  | 72/100 [00:00<00:00, 113.74it/s] 84%|████████▍ | 84/100 [00:00<00:00, 114.14it/s] 96%|█████████▌| 96/100 [00:00<00:00, 114.84it/s]100%|██████████| 100/100 [00:00<00:00, 114.17it/s]
+build data Quickdraw classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 113.64it/s] 24%|██▍       | 24/100 [00:00<00:00, 113.14it/s] 36%|███▌      | 36/100 [00:00<00:00, 113.68it/s] 48%|████▊     | 48/100 [00:00<00:00, 114.13it/s] 60%|██████    | 60/100 [00:00<00:00, 114.05it/s] 72%|███████▏  | 72/100 [00:00<00:00, 114.32it/s] 84%|████████▍ | 84/100 [00:00<00:00, 114.77it/s] 96%|█████████▌| 96/100 [00:00<00:00, 114.63it/s]100%|██████████| 100/100 [00:00<00:00, 114.28it/s]
+build data Quickdraw classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.43it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.24it/s] 36%|███▌      | 36/100 [00:00<00:00, 114.35it/s] 48%|████▊     | 48/100 [00:00<00:00, 113.19it/s] 60%|██████    | 60/100 [00:00<00:00, 113.47it/s] 72%|███████▏  | 72/100 [00:00<00:00, 113.46it/s] 84%|████████▍ | 84/100 [00:00<00:00, 113.43it/s] 96%|█████████▌| 96/100 [00:00<00:00, 113.42it/s]100%|██████████| 100/100 [00:00<00:00, 113.56it/s]
+build data Quickdraw classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 112.05it/s] 24%|██▍       | 24/100 [00:00<00:00, 113.45it/s] 36%|███▌      | 36/100 [00:00<00:00, 113.76it/s] 48%|████▊     | 48/100 [00:00<00:00, 113.72it/s] 60%|██████    | 60/100 [00:00<00:00, 114.44it/s] 72%|███████▏  | 72/100 [00:00<00:00, 114.19it/s] 84%|████████▍ | 84/100 [00:00<00:00, 114.23it/s] 96%|█████████▌| 96/100 [00:00<00:00, 114.34it/s]100%|██████████| 100/100 [00:00<00:00, 114.06it/s]
+build data Infograph classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 11%|█         | 11/100 [00:00<00:00, 109.07it/s] 22%|██▏       | 22/100 [00:00<00:00, 93.40it/s]  32%|███▏      | 32/100 [00:00<00:00, 92.28it/s] 44%|████▍     | 44/100 [00:00<00:00, 100.25it/s] 55%|█████▌    | 55/100 [00:00<00:00, 102.50it/s] 66%|██████▌   | 66/100 [00:00<00:00, 104.33it/s] 78%|███████▊  | 78/100 [00:00<00:00, 106.47it/s] 90%|█████████ | 90/100 [00:00<00:00, 109.16it/s]100%|██████████| 100/100 [00:00<00:00, 103.91it/s]
+build data Infograph classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 10%|█         | 10/100 [00:00<00:00, 91.32it/s] 22%|██▏       | 22/100 [00:00<00:00, 104.71it/s] 34%|███▍      | 34/100 [00:00<00:00, 109.07it/s] 46%|████▌     | 46/100 [00:00<00:00, 111.87it/s] 58%|█████▊    | 58/100 [00:00<00:00, 112.57it/s] 70%|███████   | 70/100 [00:00<00:00, 113.36it/s] 82%|████████▏ | 82/100 [00:00<00:00, 113.93it/s] 94%|█████████▍| 94/100 [00:00<00:00, 114.05it/s]100%|██████████| 100/100 [00:00<00:00, 111.90it/s]
+build data Infograph classification head
+  0%|          | 0/100 [00:00<?, ?it/s] 12%|█▏        | 12/100 [00:00<00:00, 114.96it/s] 24%|██▍       | 24/100 [00:00<00:00, 114.81it/s] 36%|███▌      | 36/100 [00:00<00:00, 115.09it/s] 48%|████▊     | 48/100 [00:00<00:00, 116.12it/s] 60%|██████    | 60/100 [00:00<00:00, 116.31it/s] 72%|███████▏  | 72/100 [00:00<00:00, 117.25it/s] 84%|████████▍ | 84/100 [00:00<00:00, 117.65it/s] 96%|█████████▌| 96/100 [00:00<00:00, 117.81it/s]100%|██████████| 100/100 [00:00<00:00, 116.84it/s]
+the parameters that require grad in clients[0].model: ['base.adapter.fc.0.weight', 'base.adapter.fc.2.weight']
+==================== Round 0 ====================
+Round 0 val loss: 1009.5595
+save finetuned local models
+Round 0 best val loss: 1009.5595, counter: 0
+Client 0 [Clipart] on all the other clients accuracy: [87.9688, 87.1094, 89.6875, 83.0973, 79.8867, 81.7753, 94.2651, 91.3976, 90.2547, 83.3026, 80.4174, 84.5304, 28.82, 29.48, 28.66, 66.1726, 66.0854, 67.4804]
+Client 1 [Clipart] on all the other clients accuracy: [87.9688, 87.1094, 89.6875, 83.0973, 79.8867, 81.7753, 94.2651, 91.3976, 90.2547, 83.3026, 80.4174, 84.5304, 28.82, 29.48, 28.66, 66.1726, 66.0854, 67.4804]
+Client 2 [Clipart] on all the other clients accuracy: [87.9688, 87.1094, 89.6875, 83.0973, 79.8867, 81.7753, 94.2651, 91.3976, 90.2547, 83.3026, 80.4174, 84.5304, 28.82, 29.48, 28.66, 66.1726, 66.0854, 67.4804]
+Client 3 [Painting] on all the other clients accuracy: [87.3438, 86.0156, 88.8281, 84.372, 80.4533, 82.5307, 94.0846, 91.2573, 89.8336, 82.9957, 80.2333, 84.4076, 24.74, 24.5, 24.46, 65.9111, 65.7367, 67.1316]
+Client 4 [Painting] on all the other clients accuracy: [87.3438, 86.0156, 88.8281, 84.372, 80.4533, 82.5307, 94.0846, 91.2573, 89.8336, 82.9957, 80.2333, 84.4076, 24.74, 24.5, 24.46, 65.9111, 65.7367, 67.1316]
+Client 5 [Painting] on all the other clients accuracy: [87.3438, 86.0156, 88.8281, 84.372, 80.4533, 82.5307, 94.0846, 91.2573, 89.8336, 82.9957, 80.2333, 84.4076, 24.74, 24.5, 24.46, 65.9111, 65.7367, 67.1316]
+Client 6 [Real] on all the other clients accuracy: [86.9531, 86.0938, 88.3594, 82.9556, 79.9339, 81.2087, 94.1849, 91.2773, 89.8336, 82.5046, 80.0491, 84.4076, 25.16, 25.28, 25.36, 64.6033, 64.6905, 65.9111]
+Client 7 [Real] on all the other clients accuracy: [86.9531, 86.0938, 88.3594, 82.9556, 79.9339, 81.2087, 94.1849, 91.2773, 89.8336, 82.5046, 80.0491, 84.4076, 25.16, 25.28, 25.36, 64.6033, 64.6905, 65.9111]
+Client 8 [Real] on all the other clients accuracy: [86.9531, 86.0938, 88.3594, 82.9556, 79.9339, 81.2087, 94.1849, 91.2773, 89.8336, 82.5046, 80.0491, 84.4076, 25.16, 25.28, 25.36, 64.6033, 64.6905, 65.9111]
+Client 9 [Sketch] on all the other clients accuracy: [87.5, 86.3281, 88.6719, 82.814, 79.5562, 79.6506, 94.1247, 91.2172, 89.8336, 83.7937, 81.0927, 85.0829, 28.6, 28.72, 28.6, 65.388, 65.0392, 66.0854]
+Client 10 [Sketch] on all the other clients accuracy: [87.5, 86.3281, 88.6719, 82.814, 79.5562, 79.6506, 94.1247, 91.2172, 89.8336, 83.7937, 81.0927, 85.0829, 28.6, 28.72, 28.6, 65.388, 65.0392, 66.0854]
+Client 11 [Sketch] on all the other clients accuracy: [87.5, 86.3281, 88.6719, 82.814, 79.5562, 79.6506, 94.1247, 91.2172, 89.8336, 83.7937, 81.0927, 85.0829, 28.6, 28.72, 28.6, 65.388, 65.0392, 66.0854]
+Client 12 [Quickdraw] on all the other clients accuracy: [87.1875, 86.0156, 88.9844, 82.8612, 78.9424, 79.6034, 94.2651, 91.0969, 89.9739, 84.3462, 80.2947, 84.469, 30.28, 30.16, 30.14, 64.5161, 64.5161, 64.5161]
+Client 13 [Quickdraw] on all the other clients accuracy: [87.1875, 86.0156, 88.9844, 82.8612, 78.9424, 79.6034, 94.2651, 91.0969, 89.9739, 84.3462, 80.2947, 84.469, 30.28, 30.16, 30.14, 64.5161, 64.5161, 64.5161]
+Client 14 [Quickdraw] on all the other clients accuracy: [87.1875, 86.0156, 88.9844, 82.8612, 78.9424, 79.6034, 94.2651, 91.0969, 89.9739, 84.3462, 80.2947, 84.469, 30.28, 30.16, 30.14, 64.5161, 64.5161, 64.5161]
+Client 15 [Infograph] on all the other clients accuracy: [87.4219, 86.7969, 88.2031, 82.0113, 79.9811, 80.9254, 94.4055, 91.7987, 90.2146, 82.2591, 79.558, 85.0215, 28.62, 28.12, 28.0, 69.3112, 68.701, 71.578]

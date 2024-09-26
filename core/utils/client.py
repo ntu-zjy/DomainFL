@@ -179,18 +179,14 @@ class Client(nn.Module):
         prob_list = np.vstack(prob_list)
 
         acc = 100 * accuracy_score(labels_list, predicted_list)
-        auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
-        f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
-        precision = 100 * precision_score(labels_list, predicted_list, average='macro')
-        recall = 100 * recall_score(labels_list, predicted_list, average='macro')
-        return round(acc, 4), round(auc, 4), round(f1, 4), round(precision, 4), round(recall, 4)
+        return round(acc, 4)
 
 
     def test_on_all_clients(self, clients):
         # test on all clients
         accs = []
         for client in clients:
-            acc, auc, f1, precision, recall = self.test(client.test_dataloader)
+            acc = self.test(client.test_dataloader)
             accs.append(acc)
         print(f'Client {self.id} [{self.data_name}] on all the other clients accuracy: {accs}')
         return accs
@@ -217,10 +213,7 @@ class Client(nn.Module):
         prob_list = np.vstack(prob_list)
 
         acc = 100 * accuracy_score(labels_list, predicted_list)
-        auc = 100 * roc_auc_score(labels_list, prob_list, multi_class='ovo')
-        f1 = 100 * f1_score(labels_list, predicted_list, average='macro')
-        precision = 100 * precision_score(labels_list, predicted_list, average='macro')
-        recall = 100 * recall_score(labels_list, predicted_list, average='macro')
+
         print(f'Client {self.id} [{self.data_name}] on target accuracy: {acc}')
         return round(acc, 4)
 

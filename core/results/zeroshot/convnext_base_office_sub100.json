@@ -1,2 +1,0 @@
-{"base_model": "CLIP", "dataset": "office", "subset_size": 100, "image_encoder_name": "convnext_base", "optimizer": "AdamW", "batch_size": 32, "learning_rate": 0.001, "global_rounds": 200, "local_epochs": 1, "warm_up": 20, "seed": 1}
-{"acc": [[73.2727, 93.0742, 91.8944, 83.0343], [72.3636, 92.8954, 91.7122, 82.4633], [73.1364, 92.8508, 91.9399, 82.4633], [70.9545, 91.9571, 91.2568, 82.2186]], "total_test_time": 0, "total_train_time": 0}
