@@ -231,7 +231,7 @@ def run(args):
     clients_subsets = []
     for id, data_name in enumerate(dataset):
         cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
-        cds = build_subset_mixed(cds, args.subset_size, ratios=[0.3, 0.6, 0.75])
+        cds = build_subset_mixed(cds, args.subset_size, ratios=[0.3, 0.6])
         # 没划分
         new_cds = []
         for cd in cds:

@@ -88,7 +88,8 @@ def build_subset_mixed(dataObject, num_classes, ratios):
     # Create train and test subsets
     train_subsets = create_subsets(train_indices, train_labels, ratios)
     test_subsets = create_subsets(test_indices, test_labels, ratios)
-
+    # print(train_subsets)
+    # print(test_subsets)
     # Create data loaders for each subset
     train_datasets = [CustomSubset(dataObject.train_dataset, subset_indices, new_class_to_idx, train_labels[subset_indices]) for subset_indices in train_subsets]
     test_datasets = [CustomSubset(dataObject.test_dataset, subset_indices, new_class_to_idx, test_labels[subset_indices]) for subset_indices in test_subsets]
