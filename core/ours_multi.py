@@ -220,9 +220,16 @@ def run(args):
     # client image encoder is the same as the global image encoder
     clients = []
     cls_heads = []
-    clients_ids = [[(0, 0)],[(0, 1)],[(0, 2)],[(1, 0)],[(1, 1)],[(1, 2)],
-                   [(2, 0)],[(2, 1)],[(2, 2)], [(3, 0)],[(3, 1)],[(3, 2)],
-                   [(4, 0)], [(4, 1)], [(4, 2)], [(5, 0)],[(5, 1)],[(5, 2)]]
+    domains_num = len(dataset)
+    split_num = args.split_num
+    clients_ids = []
+    for i in range(domains_num):
+        for j in range(split_num):
+            clients_ids.append([(i, j)])
+    split_ratios = [i * (1.0 / split_num) for i in range(1, split_num)]
+    # clients_ids = [[(0, 0)],[(0, 1)],[(0, 2)],[(1, 0)],[(1, 1)],[(1, 2)],
+    #                [(2, 0)],[(2, 1)],[(2, 2)], [(3, 0)],[(3, 1)],[(3, 2)],
+    #                [(4, 0)], [(4, 1)], [(4, 2)], [(5, 0)],[(5, 1)],[(5, 2)]]
     # [[(0, 0)], [(0, 1)], [(0, 2)], [(0, 3)], [(1, 0)], [(1, 1)], [(1, 2)], [(1, 3)],
     #  [(2, 0)], [(2, 1)], [(2, 2)], [(2, 3)], [(3, 0)], [(3, 1)], [(3, 2)], [(3, 3)],
     #  [(4, 0)], [(4, 1)], [(4, 2)], [(4, 3)], [(5, 0)], [(5, 1)], [(5, 2)], [(5, 3)]]
@@ -232,7 +239,7 @@ def run(args):
     for id, data_name in enumerate(dataset):
         cds = get_data(data_name, server.train_preprocess, server.val_preprocess, args.batch_size, args.num_workers)
         cds = build_subset_mixed(cds, args.subset_size, ratios=[0.3, 0.6])
-        # 没划分
+        # 没划分woshi
         new_cds = []
         for cd in cds:
             new_cd = split_train_and_val(cd)
@@ -392,6 +399,7 @@ if __name__ == "__main__":
     parser.add_argument('-sram', '--sample_ratio_method', type=str, default='cluster',
                         help='Sample ratio method (random or cluster)')
     parser.add_argument('-dp', '--diff_privacy', type=float, default=0, help='Diff privacy scale')
+    parser.add_argument('-split_num', '--split_num', type=int, default=3, help='Split number (Max 3, Min 2)')
 
     args = parser.parse_args()
 
