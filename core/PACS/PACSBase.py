@@ -51,7 +51,7 @@ PACS_url = 'https://github.com/MachineLearning2020/Homework3-PACS/contents'
 
 
 
-class CustomDomainDataset(Dataset):
+class BasePACSDataset(Dataset):
     def __init__(self, root_dir, domain, split='train', transform=None):
         self.root_dir = root_dir
         self.transform = transform
