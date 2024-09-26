@@ -1,6 +1,6 @@
-numpy==2.1.1
+numpy==1.26.4
 open_clip_torch==2.24.0
-pandas==2.2.2
+pandas==2.2.3
 Pillow==10.4.0
 Requests==2.32.3
 scikit_learn==1.4.2
