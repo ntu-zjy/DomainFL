@@ -34,10 +34,8 @@ run the `runours.sh` to check MPFT results.
 
 for the first time, the data will be downloaded automatically.
 
-you can change the config in the run0.sh file
-
 ```
-bash run0.sh
+bash runours.sh
 ```
 
 the result will be saved in results directory.
