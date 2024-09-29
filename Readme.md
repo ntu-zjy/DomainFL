@@ -30,9 +30,9 @@ You can see some visulization result in our paper by playing with the 'visualize
 
 # Basic experiment (section 5.1 and 5.2)
 
-run the **runours.sh** to check MPFT results.
+run the `runours.sh` to check MPFT results.
 
-for the first time, the data (DomainNet) will be downloaded automatically.
+for the first time, the data will be downloaded automatically.
 
 you can change the config in the run0.sh file
 
@@ -42,7 +42,7 @@ bash run0.sh
 
 the result will be saved in results directory.
 
-run the **baseline.sh** to see the results of baselines.
+run the `baseline.sh` to see the results of baselines.
 
 ```
 bash baseline.sh
