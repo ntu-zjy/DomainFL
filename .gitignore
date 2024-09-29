@@ -1,4 +1,4 @@
 *.fuse_hidden*
-nohup.out
+*nohup.out*
 
 weights/
