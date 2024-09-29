@@ -8,12 +8,7 @@ from domainnet.datasets_utils.sketch import Sketch
 from domainnet.datasets_utils.quickdraw import Quickdraw
 from domainnet.datasets_utils.infograph import Infograph
 
-from adaptiope.datasets_utils.product import product
-from adaptiope.datasets_utils.reallife import reallife
-from adaptiope.datasets_utils.synthetic import synthetic
-
 domainnet = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph'] # domainnet
-adaptiope = ['product', 'reallife', 'synthetic'] # adaptiope
 random.seed(1)
 np.random.seed(1)
 
