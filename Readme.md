@@ -24,11 +24,11 @@ Go to the core file directory.
 cd core
 ```
 
-# Visualization
+# Visualization (appendix A)
 
 You can see some visulization result in our paper by playing with the 'visualize.ipynb'.
 
-# Basic experiment
+# Basic experiment (section 5.1 and 5.2)
 
 run the **runours.sh** to check MPFT results.
 
@@ -48,21 +48,45 @@ run the **baseline.sh** to see the results of baselines.
 bash baseline.sh
 ```
 
-# Local adaptation
+# Mixed domain in one client (section 5.3)
 
-switch the branch on `local_adaptation`
+switch the branch to `mixed`
 
 ```
+# switch to the root dir of project
 cd ..
+git checkout mixed
 ```
 
-run the local_adaptation.sh, and run_full.sh (this file run the situation of all the local data is used for local adaptation)
+then follow the instrcution in `mixed` branch
+
+# Local adaptation (section 5.4)
+
+switch the branch to `local_adaptation`
 
 ```
-bash local_adaptation.sh
-bash run_full.sh
+# make sure you are in the root dir of project
+git checkout local_adaptation
+```
+
+# Computation and communication cost (section 5.5)
+
+switch the branch to `cost`
+
+```
+# make sure you are in the root dir of project
+git checkout cost
+```
+
+# Differential privacy (section 5.6)
+
+switch the branch to `dp`
+
+```
+# make sure you are in the root dir of project
+git checkout dp
 ```
 
 # Compare the results
 
-You can compare the results by runing 'read_result.ipynb' under the 'results' directory.
+you can calculate the results by running `read_results.ipynb` in `results` dir
