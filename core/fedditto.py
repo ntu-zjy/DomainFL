@@ -126,7 +126,8 @@ def run(args):
         data_name = dataset[clients_ids[ist][0][0]]
         sub = clients_subsets[clients_ids[ist][0][0]][clients_ids[ist][0][1]]
         # sub2 = clients_subsets[clients_ids[ist][1][0]][clients_ids[ist][1][1]]
-        init_image_encoder = copy.deepcopy(server.image_encoder)
+        # init_image_encoder = copy.deepcopy(server.image_encoder)
+        init_image_encoder = server.image_encoder
         cd = sub
         # cd = split_train_and_val(cd)
         cls_head = server.generate_cls_head(cd, data_name)
