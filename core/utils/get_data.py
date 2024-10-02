@@ -15,7 +15,6 @@ from PACS.sketchd import SketchD
 
 
 domainnet = ['Clipart', 'Painting', 'Real', 'Sketch', 'Quickdraw', 'Infograph'] # domainnet
-adaptiope = ['product', 'reallife', 'synthetic'] # adaptiope
 PACS = ['Photo', 'Sketch', 'ArtPainting', 'Cartoon']
 random.seed(1)
 np.random.seed(1)

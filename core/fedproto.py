@@ -7,7 +7,7 @@ import torch
 import random
 import argparse
 from models.CLIP import *
-from utils.get_data import domainnet, adaptiope
+from utils.get_data import domainnet
 from utils.get_data import get_data
 from utils.data_utils import build_subset, split_train_and_val, build_subset_mixed, concat_datasets
 from utils.server import Server
