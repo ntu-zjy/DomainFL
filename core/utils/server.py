@@ -8,13 +8,14 @@ sys.path.append('..')
 from models.CLIP import ClassificationHead, Adapter, ImageEncoder
 
 d = {'RN50':'yfcc15m',
-    'RN101': 'cc12m',
+    'RN101': 'yfcc15m',
     'ViT-B-32': 'laion2b_s34b_b79k',
     'ViT-B-16': 'laion2b_s34b_b88k',
     'ViT-L-14': 'laion2b_s32b_b82k',
     'convnext_base': 'laion400m_s13b_b51k',
     'nllb-clip-base': 'v1',
-    "RN50-quickgelu": 'cc12m'}
+    "RN50-quickgelu": 'cc12m',
+    'RN50x4': 'openai'}
 
 class Server(torch.nn.Module):
     def __init__(self, args, zeroshot=False):

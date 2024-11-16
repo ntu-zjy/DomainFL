@@ -205,8 +205,9 @@ class Client(nn.Module):
         with torch.no_grad():
             for inputs, labels in test_dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
-
+                # print(inputs)
                 rep = self.model.base.model.encode_image(inputs)
+                # print("rep:", rep)
                 local_rep = rep + self.model.base.adapter(rep)
                 outputs = self.model.head(local_rep)
 
