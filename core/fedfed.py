@@ -162,7 +162,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='FedFed Training')
     # 保留原有参数
     parser.add_argument('-d', '--dataset', type=str, default='domainnet')
-    parser.add_argument('-ss', '--subset_size', type=int, default=100)
+    parser.add_argument('-ss', '--subset_size', type=int, default=10)
     parser.add_argument('-m', '--model', type=str, default='CLIP')
     parser.add_argument('-ien', '--image_encoder_name', type=str, default='ViT-B-32')
     parser.add_argument('-optim', '--optimizer', type=str, default='AdamW')

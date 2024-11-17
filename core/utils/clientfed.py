@@ -1,6 +1,6 @@
 import copy
 import os
-
+import json
 import numpy as np
 from models.CLIP import *
 import math
@@ -195,6 +195,7 @@ class Client(nn.Module):
             rep = rep + self.model.base.adapter(rep)
             outputs = self.model.head(rep)
 
+            rep.retain_grad()
             loss = self.loss(outputs, labels)
             loss.backward()
 
