@@ -6,7 +6,7 @@ title: Enhancing Federated Domain Adaptation with Multi-Domain Prototype-Based F
 authors:
     Jingyuan Zhang, Yiyang Duan, Shuaicheng Niu, YANG CAO, Wei Yang Bryan Lim
 affiliations:
-    NTU
+    NTU<sup>1</sup>，Tokyo Institute of Technology<sup>2</sup>
 paper: https://arxiv.org/abs/2410.07738
 code: https://github.com/ntu-zjy/DomainFL
 data: https://paperswithcode.com/dataset/domainnet
