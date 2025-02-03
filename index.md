@@ -25,6 +25,8 @@ data: https://paperswithcode.com/dataset/domainnet
 ## Background
 In Federated Learning (FL), many existing methods assume clients’ data are i.i.d. (independently and identically distributed), enabling straightforward model-parameter averaging (e.g., FedAvg) to learn a global model. However, in real-world scenarios, data often come from different domains, sharing only the label space but differing in their distributions. This scenario is known as Federated Domain Adaptation (FDA). Under FDA, the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches, making it challenging to achieve good performance both on each local domain and on out-of-domain data.
 
+![vis](/static/image/t-SNE_visualization_prototypes.pdf)
+*A visualization shows that the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches.*
 
 
 ## Motivation
@@ -69,32 +71,38 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
 - Compared with FedAvg, FedProx, MOON, Ditto, FedProto, and DBE on DomainNet and PACS, MPFT consistently achieves higher **in-domain** and **out-of-domain** accuracy.
 - Notably, MPFT converges within **one communication round**, drastically reducing computational and communication overheads.
 
-
+![table1](/static/image/table1.png)
 
 ### Performance on each domain
 - Per-domain analysis via radar charts shows MPFT maintains more “balanced” performance across distinct domains.
 - It avoids large performance drops in certain domains and achieves good overall fairness in heterogeneous distributions.
 
-
+![each_domain](/static/image/each_domain.png)
 
 ### Impact of multi-domain differences on performance
 - Even if each client contains mixed data from multiple domains, MPFT still outperforms other methods.
 - As domain heterogeneity diminishes, the performance gap to baselines narrows, but MPFT remains strong.
 
-
+![table2](/static/image/table2.png)
 
 ### Performance with local adaptation
 - When few-shot local data and KD are employed, clients can improve in-domain accuracy without severely sacrificing out-of-domain accuracy.
 - Proper KD weighting strikes a balance between preserving global knowledge and optimizing local performance.
 
+![local_adaptation](/static/image/local_adaptation.pdf)
 
+### Communication and Computation Analysis
+- MPFT requires only one communication round to train the global adapter, significantly reducing communication costs.
+- The global adapter is lightweight and can be distributed to clients with minimal computational overhead, making it suitable for resource-constrained environments.
+
+![table3](/static/image/table3.png)
 
 ## Privacy Preservation Analysis
 - MPFT applies differential privacy (via Gaussian noise) to client prototypes before uploading to the server, preventing adversaries from inferring raw data.
 - Experiments with a feature space hijacking attack indicate that reconstructing the original images from shared prototypes is extremely difficult, even with knowledge of the pretrained encoder.
 - Adding moderate noise can also mitigate overfitting and, in some cases, improve robustness without significant performance loss.
 
-
+![table4](/static/image/table4.png)
 
 ## Convergence Analysis
 - The paper provides a theoretical analysis under non-convex conditions, showing that prototype-based fine-tuning converges in expectation.
