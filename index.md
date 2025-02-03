@@ -1,4 +1,4 @@
----
+
 layout: project_page
 permalink: /
 
@@ -10,7 +10,7 @@ affiliations:
 paper: https://arxiv.org/abs/2410.07738
 code: https://github.com/ntu-zjy/DomainFL
 data: https://paperswithcode.com/dataset/domainnet
----
+
 
 <!-- Using HTML to center the abstract -->
 <div class="columns is-centered has-text-centered">
@@ -23,41 +23,89 @@ Federated Domain Adaptation (FDA) is a Federated Learning (FL) scenario where mo
 </div>
 
 ## Background
-The paper "On Computable Numbers, with an Application to the Entscheidungsproblem" was published by Alan Turing in 1936. In this groundbreaking paper, Turing introduced the concept of a universal computing machine, now known as the Turing machine.
+In Federated Learning (FL), many existing methods assume clients’ data are i.i.d. (independently and identically distributed), enabling straightforward model-parameter averaging (e.g., FedAvg) to learn a global model. However, in real-world scenarios, data often come from different domains, sharing only the label space but differing in their distributions. This scenario is known as Federated Domain Adaptation (FDA). Under FDA, the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches, making it challenging to achieve good performance both on each local domain and on out-of-domain data.
 
-## Objective
-Turing's main objective in this paper was to investigate the notion of computability and its relation to the Entscheidungsproblem (the decision problem), which is concerned with determining whether a given mathematical statement is provable or not.
 
-## Key Ideas
-1. Turing first presented the concept of a "computable number," which refers to a number that can be computed by an algorithm or a definite step-by-step process.
-2. He introduced the notion of a Turing machine, an abstract computational device consisting of an infinite tape divided into cells and a read-write head. The machine can read and write symbols on the tape, move the head left or right, and transition between states based on a set of rules.
-3. Turing demonstrated that the set of computable numbers is enumerable, meaning it can be listed in a systematic way, even though it is not necessarily countable.
-4. He proved the existence of non-computable numbers, which cannot be computed by any Turing machine.
-5. Turing showed that the Entscheidungsproblem is undecidable, meaning there is no algorithm that can determine, for any given mathematical statement, whether it is provable or not.
 
-![Turing Machine](/static/image/Turing_machine.png)
+## Motivation
+Numerous fields—such as finance, healthcare, and image recognition—require models that not only perform well on each client’s own domain (in-domain) but also generalize to other domains (out-of-domain). Traditional solutions often overfit to local domains, losing cross-domain generalization, or force an averaged global model that poorly fits each unique domain. A more effective, privacy-preserving method is needed to capture domain-specific knowledge and also aggregate insights across domains without sharing raw data.
 
-## Banner Image
-![Banner Image](https://cdn.pixabay.com/photo/2018/06/24/08/17/colorful-abstract-background-3494093_1280.jpg)
 
-::: caption
-This is an image caption
-:::
 
-*Figure 1: A representation of a Turing Machine. Source: [Wiki](https://en.wikipedia.org/wiki/Turing_machine).*
+## Problem Statement
+Under FDA, each client holds data from a unique domain (but with the same label space). The goal is to jointly train a model (or local/global models) that meets two key requirements:
 
-## Table: Comparison of Computable and Non-Computable Numbers
+1. **Domain Knowledge Preservation (ind accuracy)**: Retain high accuracy on each client’s own domain.
+2. **Domain Knowledge Adaptation (ood accuracy)**: Transfer knowledge learned from other domains to achieve high accuracy on out-of-domain data.
 
-| Computable Numbers | Non-Computable Numbers |
-|-------------------|-----------------------|
-| Rational numbers, e.g., 1/2, 3/4 | Transcendental numbers, e.g., π, e |
-| Algebraic numbers, e.g., √2, ∛3 | Non-algebraic numbers, e.g., √2 + √3 |
-| Numbers with finite decimal representations | Numbers with infinite, non-repeating decimal representations |
+Because averaging model parameters often fails in the presence of substantial domain gaps, a new aggregation mechanism is necessary.
 
-He used the concept of a universal Turing machine to prove that the set of computable functions is recursively enumerable, meaning it can be listed by an algorithm.
 
-## Significance
-Turing's paper laid the foundation for the theory of computation and had a profound impact on the development of computer science. The Turing machine became a fundamental concept in theoretical computer science, serving as a theoretical model for studying the limits and capabilities of computation. Turing's work also influenced the development of programming languages, algorithms, and the design of modern computers.
+
+## Methodology
+The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuning)**, addresses FDA in three main steps:
+
+1. **Prototype Generation**
+   - Each client uses the same pretrained feature extractor to generate class-specific embeddings (i.e., prototypes).
+   - Different sampling strategies (mean, cluster, or random) can be chosen to capture representative embeddings of each class in each domain.
+
+2. **Global Adapter Initialization**
+   - The server collects these prototypes from all clients, effectively constructing a “prototype dataset.”
+   - It then fine-tunes a global adapter on this aggregated dataset, simulating a centralized training approach without parameter averaging.
+   - A single communication round suffices to train this global adapter.
+
+3. **Few-shot Local Adaptation (Optional)**
+   - If a client requires higher in-domain accuracy, it can use a small local dataset (few-shot) to further fine-tune the adapter.
+   - Knowledge distillation (KD) is employed to maintain global knowledge while adapting to local data, mitigating catastrophic forgetting.
+
+
+
+## Experiment
+
+### Performance on multi-domain
+- Compared with FedAvg, FedProx, MOON, Ditto, FedProto, and DBE on DomainNet and PACS, MPFT consistently achieves higher **in-domain** and **out-of-domain** accuracy.
+- Notably, MPFT converges within **one communication round**, drastically reducing computational and communication overheads.
+
+### Performance on each domain
+- Per-domain analysis via radar charts shows MPFT maintains more “balanced” performance across distinct domains.
+- It avoids large performance drops in certain domains and achieves good overall fairness in heterogeneous distributions.
+
+### Impact of multi-domain differences on performance
+- Even if each client contains mixed data from multiple domains, MPFT still outperforms other methods.
+- As domain heterogeneity diminishes, the performance gap to baselines narrows, but MPFT remains strong.
+
+### Performance with local adaptation
+- When few-shot local data and KD are employed, clients can improve in-domain accuracy without severely sacrificing out-of-domain accuracy.
+- Proper KD weighting strikes a balance between preserving global knowledge and optimizing local performance.
+
+
+
+## Privacy Preservation Analysis
+- MPFT applies differential privacy (via Gaussian noise) to client prototypes before uploading to the server, preventing adversaries from inferring raw data.
+- Experiments with a feature space hijacking attack indicate that reconstructing the original images from shared prototypes is extremely difficult, even with knowledge of the pretrained encoder.
+- Adding moderate noise can also mitigate overfitting and, in some cases, improve robustness without significant performance loss.
+
+
+
+## Convergence Analysis
+- The paper provides a theoretical analysis under non-convex conditions, showing that prototype-based fine-tuning converges in expectation.
+- With appropriate learning rates and bounded prototype divergence, the loss decreases monotonically, ensuring convergence to a stationary point.
+
+
+
+## Conclusion and Future Work
+**Conclusion**
+- MPFT addresses the shortcomings of naive parameter averaging in FDA by training on aggregated multi-domain prototypes.
+- It achieves high out-of-domain performance while maintaining strong in-domain accuracy, requiring only a single round of communication for the global adapter.
+- It is lightweight, privacy-preserving, and empirically robust to domain heterogeneity.
+
+**Future Work**
+1. **Prototype Quality**: Investigate improved prototype generation and better pretrained backbones, especially when within-class data variance is large.
+2. **Advanced Privacy**: Explore stronger defenses against membership or attribute inference attacks while maintaining high performance.
+3. **Real-World Extensions**: Adapt MPFT to more complex domains and tasks, such as financial fraud detection or clinical data analysis, where multi-domain data are prevalent.
+
+![motivation](/static/image/motivation.pdf)
+*Comparison of MPFT to centralized learning and previous averaging-based FL approaches.*
 
 ## Citation
 ```
