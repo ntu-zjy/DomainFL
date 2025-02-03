@@ -30,6 +30,8 @@ In Federated Learning (FL), many existing methods assume clients’ data are i.i
 ## Motivation
 Numerous fields—such as finance, healthcare, and image recognition—require models that not only perform well on each client’s own domain (in-domain) but also generalize to other domains (out-of-domain). Traditional solutions often overfit to local domains, losing cross-domain generalization, or force an averaged global model that poorly fits each unique domain. A more effective, privacy-preserving method is needed to capture domain-specific knowledge and also aggregate insights across domains without sharing raw data.
 
+![motivation](/static/image/motivation.pdf)
+*Comparison of MPFT to centralized learning and previous averaging-based FL approaches.*
 
 
 ## Problem Statement
@@ -39,7 +41,6 @@ Under FDA, each client holds data from a unique domain (but with the same label 
 2. **Domain Knowledge Adaptation (ood accuracy)**: Transfer knowledge learned from other domains to achieve high accuracy on out-of-domain data.
 
 Because averaging model parameters often fails in the presence of substantial domain gaps, a new aggregation mechanism is necessary.
-
 
 
 ## Methodology
@@ -58,6 +59,8 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
    - If a client requires higher in-domain accuracy, it can use a small local dataset (few-shot) to further fine-tune the adapter.
    - Knowledge distillation (KD) is employed to maintain global knowledge while adapting to local data, mitigating catastrophic forgetting.
 
+![motivation](/static/image/method.pdf)
+*An overview of MPFT.*
 
 
 ## Experiment
@@ -66,13 +69,19 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
 - Compared with FedAvg, FedProx, MOON, Ditto, FedProto, and DBE on DomainNet and PACS, MPFT consistently achieves higher **in-domain** and **out-of-domain** accuracy.
 - Notably, MPFT converges within **one communication round**, drastically reducing computational and communication overheads.
 
+
+
 ### Performance on each domain
 - Per-domain analysis via radar charts shows MPFT maintains more “balanced” performance across distinct domains.
 - It avoids large performance drops in certain domains and achieves good overall fairness in heterogeneous distributions.
 
+
+
 ### Impact of multi-domain differences on performance
 - Even if each client contains mixed data from multiple domains, MPFT still outperforms other methods.
 - As domain heterogeneity diminishes, the performance gap to baselines narrows, but MPFT remains strong.
+
+
 
 ### Performance with local adaptation
 - When few-shot local data and KD are employed, clients can improve in-domain accuracy without severely sacrificing out-of-domain accuracy.
@@ -91,8 +100,6 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
 - The paper provides a theoretical analysis under non-convex conditions, showing that prototype-based fine-tuning converges in expectation.
 - With appropriate learning rates and bounded prototype divergence, the loss decreases monotonically, ensuring convergence to a stationary point.
 
-
-
 ## Conclusion and Future Work
 **Conclusion**
 - MPFT addresses the shortcomings of naive parameter averaging in FDA by training on aggregated multi-domain prototypes.
@@ -104,8 +111,6 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
 2. **Advanced Privacy**: Explore stronger defenses against membership or attribute inference attacks while maintaining high performance.
 3. **Real-World Extensions**: Adapt MPFT to more complex domains and tasks, such as financial fraud detection or clinical data analysis, where multi-domain data are prevalent.
 
-![motivation](/static/image/motivation.pdf)
-*Comparison of MPFT to centralized learning and previous averaging-based FL approaches.*
 
 ## Citation
 ```
