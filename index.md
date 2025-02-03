@@ -26,6 +26,7 @@ data: https://paperswithcode.com/dataset/domainnet
 In Federated Learning (FL), many existing methods assume clients’ data are i.i.d. (independently and identically distributed), enabling straightforward model-parameter averaging (e.g., FedAvg) to learn a global model. However, in real-world scenarios, data often come from different domains, sharing only the label space but differing in their distributions. This scenario is known as Federated Domain Adaptation (FDA). Under FDA, the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches, making it challenging to achieve good performance both on each local domain and on out-of-domain data.
 
 ![vis](/static/image/t-SNE_visualization_prototypes.pdf)
+
 *A visualization shows that the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches.*
 
 
@@ -33,6 +34,7 @@ In Federated Learning (FL), many existing methods assume clients’ data are i.i
 Numerous fields—such as finance, healthcare, and image recognition—require models that not only perform well on each client’s own domain (in-domain) but also generalize to other domains (out-of-domain). Traditional solutions often overfit to local domains, losing cross-domain generalization, or force an averaged global model that poorly fits each unique domain. A more effective, privacy-preserving method is needed to capture domain-specific knowledge and also aggregate insights across domains without sharing raw data.
 
 ![motivation](/static/image/motivation.pdf)
+
 *Comparison of MPFT to centralized learning and previous averaging-based FL approaches.*
 
 
