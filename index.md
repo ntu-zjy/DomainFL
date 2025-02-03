@@ -1,4 +1,4 @@
-
+---
 layout: project_page
 permalink: /
 
@@ -10,7 +10,7 @@ affiliations:
 paper: https://arxiv.org/abs/2410.07738
 code: https://github.com/ntu-zjy/DomainFL
 data: https://paperswithcode.com/dataset/domainnet
-
+---
 
 <!-- Using HTML to center the abstract -->
 <div class="columns is-centered has-text-centered">
