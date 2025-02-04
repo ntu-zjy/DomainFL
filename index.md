@@ -29,7 +29,6 @@ In Federated Learning (FL), many existing methods assume clients’ data are i.i
 
 *A visualization shows that the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches.*
 
-
 ## Motivation
 Numerous fields—such as finance, healthcare, and image recognition—require models that not only perform well on each client’s own domain (in-domain) but also generalize to other domains (out-of-domain). Traditional solutions often overfit to local domains, losing cross-domain generalization, or force an averaged global model that poorly fits each unique domain. A more effective, privacy-preserving method is needed to capture domain-specific knowledge and also aggregate insights across domains without sharing raw data.
 
