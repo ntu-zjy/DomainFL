@@ -17,7 +17,7 @@ data: https://paperswithcode.com/dataset/domainnet
     <div class="column is-four-fifths">
         <h2>Abstract</h2>
         <div class="content has-text-justified">
-        <strong>Federated Domain Adaptation (FDA)</strong> is a <strong>Federated Learning (FL)</strong> scenario where models are trained across multiple clients with unique data domains but a shared category space, without transmitting private data. The primary challenge in FDA is data heterogeneity, which causes significant divergences in gradient updates when using conventional averaging-based aggregation methods, reducing the efficacy of the global model. This further undermines both in-domain and out-of-domain performance (within the same federated system but outside the local client), which is critical in certain business applications. To address this, we propose a novel framework called <strong>Multi-domain Prototype-based Federated Fine-Tuning (MPFT)</strong>. MPFT fine-tunes a pre-trained model using multi-domain prototypes, i.e., several pre-trained representations enriched with domain-specific information from category-specific local data. This enables supervised learning on the server to create a globally optimized adapter that is subsequently distributed to local clients, without the intrusion of data privacy. Empirical results show that MPFT significantly improves both in-domain and out-of-domain accuracy over conventional methods, enhancing knowledge preservation and adaptation in FDA. Notably, MPFT achieves convergence within a single communication round, greatly reducing computation and communication costs. To ensure privacy, MPFT applies <strong>differential privacy</strong> to protect the prototypes. Additionally, we develop a prototype-based feature space hijacking attack to evaluate robustness, confirming that raw data samples remain unrecoverable even after extensive training epochs. The complete implementation of MPFL is available at <a href="https://anonymous.4open.science/r/DomainFL/">https://anonymous.4open.science/r/DomainFL/</a>.
+        <strong>Federated Domain Adaptation (FDA)</strong> is a <strong>Federated Learning (FL)</strong> scenario where models are trained across multiple clients with unique data domains but a shared category space, without transmitting private data. The primary challenge in FDA is data heterogeneity, which causes significant divergences in gradient updates when using conventional averaging-based aggregation methods, reducing the efficacy of the global model. This further undermines both in-domain and out-of-domain performance (within the same federated system but outside the local client), which is critical in certain business applications. To address this, we propose a novel framework called <strong>Multi-domain Prototype-based Federated Fine-Tuning (MPFT)</strong>. MPFT fine-tunes a pre-trained model using multi-domain prototypes, i.e., several pre-trained representations enriched with domain-specific information from category-specific local data. This enables supervised learning on the server to create a globally optimized adapter that is subsequently distributed to local clients, without the intrusion of data privacy. Empirical results show that MPFT significantly improves both in-domain and out-of-domain accuracy over conventional methods, enhancing knowledge preservation and adaptation in FDA. Notably, MPFT achieves convergence within a single communication round, greatly reducing computation and communication costs. To ensure privacy, MPFT applies <strong>differential privacy</strong> to protect the prototypes. Additionally, we develop a prototype-based feature space hijacking attack to evaluate robustness, confirming that raw data samples remain unrecoverable even after extensive training epochs. The complete implementation of MPFL is available at <a href="https://anonymous.4open.science/r/DomainFL/">https://github.com/ntu-zjy/DomainFL</a>.
         </div>
     </div>
 </div>
@@ -26,7 +26,7 @@ data: https://paperswithcode.com/dataset/domainnet
 
 In Federated Learning (FL), many existing methods assume clients’ data are i.i.d. (independently and identically distributed), enabling straightforward model-parameter averaging (e.g., FedAvg) to learn a global model. However, in real-world scenarios, data often come from different domains, sharing only the label space but differing in their distributions. This scenario is known as Federated Domain Adaptation (FDA). Under FDA, the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches, making it challenging to achieve good performance both on each local domain and on out-of-domain data.
 
-![vis](/static/image/t-SNE_visualization_prototypes.pdf)
+![vis](/static/image/t-SNE_visualization_prototypes.png)
 
 *A visualization shows that the large domain gaps across clients undermine the effectiveness of naive averaging-based approaches.*
 
@@ -34,7 +34,7 @@ In Federated Learning (FL), many existing methods assume clients’ data are i.i
 
 Numerous fields—such as finance, healthcare, and image recognition—require models that not only perform well on each client’s own domain (in-domain) but also generalize to other domains (out-of-domain). Traditional solutions often overfit to local domains, losing cross-domain generalization, or force an averaged global model that poorly fits each unique domain. A more effective, privacy-preserving method is needed to capture domain-specific knowledge and also aggregate insights across domains without sharing raw data.
 
-![motivation](/static/image/motivation.pdf)
+![motivation](/static/image/motivation.png)
 
 *Comparison of MPFT to centralized learning and previous averaging-based FL approaches.*
 
@@ -65,7 +65,7 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
    - If a client requires higher in-domain accuracy, it can use a small local dataset (few-shot) to further fine-tune the adapter.
    - Knowledge distillation (KD) is employed to maintain global knowledge while adapting to local data, mitigating catastrophic forgetting.
 
-![motivation](/static/image/method.pdf)
+![motivation](/static/image/method.png)
 *An overview of MPFT.*
 
 ## Experiment
@@ -96,7 +96,7 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
 - When few-shot local data and KD are employed, clients can improve in-domain accuracy without severely sacrificing out-of-domain accuracy.
 - Proper KD weighting strikes a balance between preserving global knowledge and optimizing local performance.
 
-![local_adaptation](/static/image/local_adaptation.pdf)
+![local_adaptation](/static/image/local_adaptation.png)
 
 ### Communication and Computation Analysis
 
