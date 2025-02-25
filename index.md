@@ -4,7 +4,7 @@ permalink: /
 
 title: Enhancing Federated Domain Adaptation with Multi-Domain Prototype-Based Federated Fine-Tuning
 authors:
-    Jingyuan Zhang<sup>1</sup>, Yiyang Duan<sup>1</sup>, Shuaicheng Niu<sup>1</sup>, YANG CAO<sup>2</sup>, Wei Yang Bryan Lim<sup>1</sup>
+    Jingyuan Zhang<sup>1</sup>, Yiyang Duan<sup>1</sup>, Shuaicheng Niu<sup>1</sup>, Yang Cao<sup>2</sup>, Wei Yang Bryan Lim<sup>1</sup>
 affiliations:
     Nanyang Technological University<sup>1</sup>，Tokyo Institute of Technology<sup>2</sup>
 paper: https://arxiv.org/abs/2410.07738
