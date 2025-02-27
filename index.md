@@ -8,7 +8,7 @@ authors:
 affiliations:
     Nanyang Technological University<sup>1</sup>，Tokyo Institute of Technology<sup>2</sup>
 paper: https://arxiv.org/abs/2410.07738
-iclr 2025: https://github.com/ntu-zjy/DomainFL
+code: https://github.com/ntu-zjy/DomainFL
 data: https://paperswithcode.com/dataset/domainnet
 ---
 <!-- Using HTML to center the abstract -->
