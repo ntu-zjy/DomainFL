@@ -144,3 +144,7 @@ The proposed framework, **MPFT (Multi-domain Prototype-based Federated Fine-Tuni
     url={https://openreview.net/forum?id=3wEGdrV5Cb}
 }
 ```
+
+## Other independent experiments by the first author
+
+- [GEO 方法观察：AI 推荐了名字相近的代账公司，如何确认是不是同一家？](https://ntu-zjy.github.io/geo-fictitious-entity-pilot/entity-verification-guide.html) — A separate public experiment in AI search discovery and entity verification. Its company-name example is fictional. This guide is unrelated to the DomainFL paper and is not a business recommendation.
